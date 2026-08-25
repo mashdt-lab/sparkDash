@@ -113,6 +113,19 @@ export class SparkMonitor {
           this._hardwareSummary = { ...this._hardwareSummary, ...detected };
         })
         .catch(() => {});
+    } else {
+      // kind "spark": cpuModel/cpuCores/totalMemoryGB/gpuChip stay the fixed
+      // GB10 specs, but the installed driver version is per-machine and was
+      // previously left hardcoded null. Detect just that one field via the
+      // same nvidia-smi probe used for kind "host", without touching the
+      // rest of the static summary.
+      void this.collector
+        .detectHardware()
+        .then((detected) => {
+          if (this._stopped || !detected?.cudaDriver) return;
+          this._hardwareSummary = { ...this._hardwareSummary, cudaDriver: detected.cudaDriver };
+        })
+        .catch(() => {});
     }
 
     // Timers

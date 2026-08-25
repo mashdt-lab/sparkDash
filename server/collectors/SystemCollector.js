@@ -63,14 +63,31 @@ export class SystemCollector {
 
       // Temperature and power can run in parallel — power is now a pure
       // function of the usage fraction (no extra /proc/stat read).
-      const [temp, power] = await Promise.all([
+      const [temp, power, loadAvg] = await Promise.all([
         this._getCPUTemperature(),
         this._getCPUPower(usageFraction),
+        this._getLoadAverage(),
       ]);
-      return { usage: cpuPercentage, temperature: temp, ...power };
+      return { usage: cpuPercentage, temperature: temp, loadAvg, ...power };
     } catch (err) {
       console.error(`[SystemCollector] CPU error for ${this.spark.id}:`, err.message);
       return this._defaultCpu();
+    }
+  }
+
+  /**
+   * Read 1/5/15-minute load averages from /proc/loadavg (local) or via SSH
+   * (remote). Returns null on any failure so callers keep their fallback.
+   * @returns {Promise<[number, number, number] | null>}
+   */
+  async _getLoadAverage() {
+    try {
+      const raw = await this._readHostFile("/proc/loadavg");
+      const parts = raw.trim().split(/\s+/).slice(0, 3).map(Number);
+      if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) return parts;
+      return null;
+    } catch {
+      return null;
     }
   }
 
@@ -1007,6 +1024,8 @@ export class SystemCollector {
         "cat /proc/stat | head -1",
         "echo '---'",
         "cat /proc/cpuinfo | grep -E 'CPU architecture|aarch64' | head -1",
+        "echo '---'",
+        "cat /proc/loadavg",
         ...(this.spark.kind === "host"
           ? [
               "echo '---'",
@@ -1022,7 +1041,11 @@ export class SystemCollector {
       const sections = output.split("---");
       const statOut = sections[0]?.trim() || "";
       const cpuinfoOut = sections[1]?.trim() || "";
-      const tempOut = this.spark.kind === "host" ? sections[2] || "" : "";
+      const loadavgOut = sections[2]?.trim() || "";
+      const tempOut = this.spark.kind === "host" ? sections[3] || "" : "";
+      const loadParts = loadavgOut.split(/\s+/).slice(0, 3).map(Number);
+      const loadAvg =
+        loadParts.length === 3 && loadParts.every((n) => Number.isFinite(n)) ? loadParts : null;
 
       const cpuStat = this._parseCPUUsage(statOut);
       const totalDiff = cpuStat.total - (this.lastCpuStat?.total || cpuStat.total);
@@ -1041,6 +1064,7 @@ export class SystemCollector {
         temperature: this.spark.kind === "host" ? this._parseSensorTemp(tempOut) : 0,
         draw: Math.round(draw * 10) / 10,
         tdp: Math.round(tdp),
+        loadAvg,
       };
     } catch (err) {
       console.error(`[SystemCollector] Remote CPU error for ${this.spark.id}:`, err.message);
@@ -1507,7 +1531,7 @@ export class SystemCollector {
   }
 
   _defaultCpu() {
-    return { usage: 0, temperature: 0, draw: 0, tdp: 0 };
+    return { usage: 0, temperature: 0, draw: 0, tdp: 0, loadAvg: null };
   }
 
   _defaultRam() {
