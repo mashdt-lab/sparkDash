@@ -60,6 +60,35 @@ device line never showed a driver version.
   attribute was correct on inspection, but a native-tooltip hover delay made it easy to
   miss in practice — showing all three values directly reads better.)
 
+## 4. Daily peak GPU temp/power chart
+
+**Problem:** GB10 has a documented history (in the community, and in this fork's own
+ComfyUI tooling notes) of hard reboots from power/thermal spikes under heavy load, but
+sparkDash's in-memory metrics history is a 1-hour rolling window — not enough to answer
+"how hot did it get under load" over a longer stretch without grepping a separate log
+file by hand.
+
+**Fix:** a new `GpuDailyStore`, structurally identical to the existing `LlmDailyStore`
+(`server/collectors/LlmDaily.js`) — one record per Spark per UTC day, tracking
+max + average temperature and power draw, persisted to `config/gpu-daily.json` and
+capped at 30 days. Exposed as `GET /api/sparks/:id/gpu/daily` and rendered as a bar
+chart under the GPU panel's process list, color-coded the same way the live GPU-temp
+bar already is (accent / warning at 80°C / danger at 90°C). Hovering a day's bar shows
+both temp and power, max and average.
+
+Unlike the LLM daily rollup, there's no "busy" gate — an idle GPU sample is still a
+real data point (a GPU that's always cool is exactly as informative as one that spikes).
+
+- `server/collectors/GpuDaily.js` (new)
+- `server/sparks/SparkMonitor.js` — `gpuDaily.record()` on every GPU poll
+- `server/index.js` — new route
+- `src/components/SparkPage/GpuDailyChart.tsx` (new), wired into `GpuPanel.tsx`
+
+**Note:** this tracks going forward from whenever the Spark unit is registered in
+sparkDash. It does not backfill history from a pre-existing, separate
+`thermal_monitor.log` (written by this fork's `spark-comfyui.sh status --watch`) —
+that's a different tool with its own log file, not something sparkDash reads.
+
 ## Not changed
 
 Everything else — ComfyUI monitoring, Hermes Agent, Tailnet probe, the sandbox stack
