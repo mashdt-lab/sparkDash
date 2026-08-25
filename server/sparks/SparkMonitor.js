@@ -6,6 +6,7 @@ import { ComfyProbe } from "../collectors/ComfyProbe.js";
 import { HermesProbe } from "../collectors/HermesProbe.js";
 import { TailscaleProbe } from "../collectors/TailscaleProbe.js";
 import { llmDaily } from "../collectors/LlmDaily.js";
+import { gpuDaily } from "../collectors/GpuDaily.js";
 import { sshTest, sshExec } from "../collectors/ssh.js";
 import {
   POLL_INTERVAL_GPU,
@@ -572,6 +573,7 @@ export class SparkMonitor {
       switch (domain) {
         case "gpu":
           this._metrics.gpu = result;
+          gpuDaily.record(this.spark.id, result);
           break;
         case "cpu":
           this._metrics.cpu = result;
