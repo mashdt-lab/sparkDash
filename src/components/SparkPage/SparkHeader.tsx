@@ -98,19 +98,6 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
                 {formatUptime(spark.uptime)}
               </span>
             )}
-            {online && load1 != null && (
-              <span
-                className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-tabular text-[10px] font-medium ${loadBadgeClass}`}
-                title={
-                  cpu?.loadAvg
-                    ? `Load average (1m / 5m / 15m): ${cpu.loadAvg.map((n) => n.toFixed(2)).join(" / ")} · ${cores} cores`
-                    : undefined
-                }
-              >
-                Load {load1.toFixed(2)}
-                <Sparkline data={loadHistory} color={loadLineColor} width={28} height={12} area={false} />
-              </span>
-            )}
             {hermes?.monitoring && hermes.installed && hermes.version && (
               <span
                 className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 font-tabular text-[10px] font-medium text-accent"
@@ -145,6 +132,23 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
           </p>
         </div>
       </div>
+
+      {online && load1 != null && cpu?.loadAvg && (
+        <div
+          className={`hidden shrink-0 flex-col justify-center gap-1 rounded px-2.5 py-1.5 sm:flex ${loadBadgeClass}`}
+          title={`Load average over the last 1 / 5 / 15 minutes, out of ${cores} CPU cores.`}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-medium uppercase tracking-wide opacity-75">
+              Load avg (1m · 5m · 15m)
+            </span>
+            <Sparkline data={loadHistory} color={loadLineColor} width={36} height={10} area={false} />
+          </div>
+          <span className="font-tabular text-xs font-semibold">
+            {cpu.loadAvg.map((n) => n.toFixed(2)).join(" · ")}
+          </span>
+        </div>
+      )}
 
       {/* Desktop action cluster (hidden on mobile; mobile renders its own row above Resources) */}
       <SparkActions
