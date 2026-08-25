@@ -20,6 +20,7 @@ import {
 import { showcaseManager } from "./collectors/ShowcaseManager.js";
 import { llmProbeHost } from "./collectors/llmHost.js";
 import { llmDaily } from "./collectors/LlmDaily.js";
+import { gpuDaily } from "./collectors/GpuDaily.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
 
 dotenv.config();
@@ -772,6 +773,18 @@ app.get("/api/sparks/:id/llm/daily", (req, res) => {
   let days = req.query.days != null ? Number(req.query.days) : 14;
   if (!Number.isFinite(days)) days = 14;
   res.json(llmDaily.getSeries(spark.id, port, { days }));
+});
+
+/**
+ * Daily GPU temp/power rollups (max + avg, last 14 UTC days by default).
+ * Query: days (1-30). One series per Spark (a Spark has a single GPU).
+ */
+app.get("/api/sparks/:id/gpu/daily", (req, res) => {
+  const spark = registry.getSpark(req.params.id);
+  if (!spark) return res.status(404).json({ error: "Spark not found" });
+  let days = req.query.days != null ? Number(req.query.days) : 14;
+  if (!Number.isFinite(days)) days = 14;
+  res.json(gpuDaily.getSeries(spark.id, { days }));
 });
 
 /**

@@ -345,6 +345,19 @@ export interface LlmDailyResponse {
   days: LlmDailyDay[];
 }
 
+export interface GpuDailyDay {
+  date: string;
+  tempMax: number;
+  tempAvg: number | null;
+  powerMax: number;
+  powerAvg: number | null;
+}
+
+export interface GpuDailyResponse {
+  sparkId: string;
+  days: GpuDailyDay[];
+}
+
 /** Security posture badge payload from LlmProbe. */
 export interface LlmPosture {
   /** ok = green, warn = amber, danger = red */

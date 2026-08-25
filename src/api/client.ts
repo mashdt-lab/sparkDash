@@ -5,6 +5,7 @@ import type {
   HermesUpdatesResponse,
   LlmMetrics,
   LlmDailyResponse,
+  GpuDailyResponse,
   Settings,
   ShowcaseListResponse,
   ShowcaseSessionState,
@@ -55,6 +56,11 @@ export function fetchLlmDaily(
 ): Promise<LlmDailyResponse> {
   const q = new URLSearchParams({ port: String(port), days: String(days) });
   return apiFetch(`/api/sparks/${encodeURIComponent(id)}/llm/daily?${q.toString()}`);
+}
+
+export function fetchGpuDaily(id: string, days = 14): Promise<GpuDailyResponse> {
+  const q = new URLSearchParams({ days: String(days) });
+  return apiFetch(`/api/sparks/${encodeURIComponent(id)}/gpu/daily?${q.toString()}`);
 }
 
 export function addSpark(config: SparkConfig): Promise<{ success: boolean; spark: SparkConfig }> {

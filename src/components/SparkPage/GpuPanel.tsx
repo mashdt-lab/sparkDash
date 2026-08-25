@@ -4,6 +4,7 @@ import { Panel } from "../ui/Panel";
 import { ActivityIcon } from "../ui/icons";
 import { MetricBar } from "../ui/MetricBar";
 import { useMetricsHistoryTail } from "../../hooks/metricsStore";
+import { GpuDailyChart } from "./GpuDailyChart";
 
 interface GpuPanelProps {
   gpu: GpuMetrics | null;
@@ -199,6 +200,8 @@ export function GpuPanel({ gpu, sparkId, temperatureUnit, className }: GpuPanelP
           ))}
         </div>
       )}
+
+      <GpuDailyChart sparkId={sparkId} />
     </Panel>
   );
 }
