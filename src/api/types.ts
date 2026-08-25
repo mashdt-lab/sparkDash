@@ -219,6 +219,8 @@ export interface CpuMetrics {
   temperature: number;
   draw: number;
   tdp: number;
+  /** 1 / 5 / 15-minute load averages from /proc/loadavg, or null if unavailable. */
+  loadAvg: [number, number, number] | null;
 }
 
 // ─── RAM metrics ─────────────────────────────────────────

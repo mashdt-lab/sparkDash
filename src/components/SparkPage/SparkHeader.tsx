@@ -1,6 +1,8 @@
 import type { SparkSnapshot } from "../../api/types";
 import { resolveSparkRole } from "../../api/sparkRole";
 import { SparkActions } from "./SparkActions";
+import { Sparkline } from "../ui/Sparkline";
+import { useMetricsHistoryTail } from "../../hooks/metricsStore";
 
 interface SparkHeaderProps {
   spark: SparkSnapshot;
@@ -23,6 +25,24 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
   const { hardware } = spark;
   const online = spark.online;
   const hermes = spark.hermes;
+  const cpu = spark.metrics?.cpu;
+  const load1 = cpu?.loadAvg?.[0] ?? null;
+  const loadHistory = useMetricsHistoryTail(spark.id, "cpu.loadavg1");
+  const cores = hardware.cpuCores ?? 20;
+  const loadSeverity =
+    load1 == null ? "ok" : load1 > cores ? "danger" : load1 > cores * 0.8 ? "warning" : "ok";
+  const loadBadgeClass =
+    loadSeverity === "danger"
+      ? "bg-danger/15 text-danger"
+      : loadSeverity === "warning"
+        ? "bg-warning/15 text-warning"
+        : "bg-accent/15 text-accent";
+  const loadLineColor =
+    loadSeverity === "danger"
+      ? "var(--color-danger)"
+      : loadSeverity === "warning"
+        ? "var(--color-warning)"
+        : "var(--color-accent)";
 
   return (
     <div
@@ -78,6 +98,19 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
                 {formatUptime(spark.uptime)}
               </span>
             )}
+            {online && load1 != null && (
+              <span
+                className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-tabular text-[10px] font-medium ${loadBadgeClass}`}
+                title={
+                  cpu?.loadAvg
+                    ? `Load average (1m / 5m / 15m): ${cpu.loadAvg.map((n) => n.toFixed(2)).join(" / ")} · ${cores} cores`
+                    : undefined
+                }
+              >
+                Load {load1.toFixed(2)}
+                <Sparkline data={loadHistory} color={loadLineColor} width={28} height={12} area={false} />
+              </span>
+            )}
             {hermes?.monitoring && hermes.installed && hermes.version && (
               <span
                 className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 font-tabular text-[10px] font-medium text-accent"
@@ -107,7 +140,7 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
           </div>
           <p className="truncate text-xs text-muted">
             {hardware.gpuChip
-              ? `${hardware.device} · ${hardware.gpuChip}`
+              ? `${hardware.device} · ${hardware.gpuChip}${hardware.cudaDriver ? ` · Driver ${hardware.cudaDriver}` : ""}`
               : hardware.device}
           </p>
         </div>

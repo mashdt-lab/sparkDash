@@ -95,6 +95,9 @@ export function ingestSnapshots(sparks: SparkSnapshot[]): void {
     }
     if (m.cpu) {
       pushHistory(`${s.id}:cpu.usage`, m.cpu.usage);
+      if (Array.isArray(m.cpu.loadAvg) && m.cpu.loadAvg.length > 0) {
+        pushHistory(`${s.id}:cpu.loadavg1`, m.cpu.loadAvg[0]);
+      }
       // CPU temp is only shown for dedicated GPU hosts (not DGX Sparks).
       if (s.kind === "host" && m.cpu.temperature > 0) {
         pushHistory(`${s.id}:cpu.temp`, m.cpu.temperature);
