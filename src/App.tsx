@@ -8,11 +8,12 @@ import { EditSparkDialog } from "./components/EditSparkDialog";
 import { SparkPage } from "./components/SparkPage/SparkPage";
 import { HermesUpdateDialog } from "./components/SparkPage/HermesUpdateDialog";
 import { OverviewPage } from "./components/OverviewPage/OverviewPage";
+import { ServicesPage } from "./components/ServicesPage/ServicesPage";
 import { ShowcasePage } from "./components/ShowcasePage/ShowcasePage";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { GearIcon, BoltIcon } from "./components/ui/icons";
-import { OVERVIEW_ID } from "./constants";
+import { OVERVIEW_ID, SERVICES_ID } from "./constants";
 import type { Settings, SparkSnapshot } from "./api/types";
 
 function placeholderSnapshot(
@@ -139,6 +140,7 @@ function DashboardApp() {
 
 
   const isOverview = activeId === OVERVIEW_ID;
+  const isServices = activeId === SERVICES_ID;
   const displayActive = isOverview
     ? null
     : displaySparks.find((s) => s.id === activeId) || displaySparks[0] || activeSpark || null;
@@ -267,7 +269,9 @@ function DashboardApp() {
           </div>
         </header>
         <main>
-          {isOverview ? (
+          {isServices ? (
+            <ServicesPage spark={displaySparks[0] ?? null} />
+          ) : isOverview ? (
             <OverviewPage
               sparks={displaySparks}
               hideOffline={settings?.autoHideOffline ?? false}

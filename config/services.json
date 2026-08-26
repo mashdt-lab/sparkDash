@@ -1,0 +1,80 @@
+[
+  {
+    "id": "open-webui",
+    "name": "Open WebUI",
+    "category": "AI & Creative",
+    "port": 3000,
+    "description": "Local AI chat",
+    "probe": "http-get",
+    "openable": true
+  },
+  {
+    "id": "sglang",
+    "name": "Qwen / SGLang",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "Local OpenAI-compatible LLM server",
+    "probe": "reuse-llm",
+    "actions": ["api", "metrics"]
+  },
+  {
+    "id": "comfyui",
+    "name": "ComfyUI",
+    "category": "AI & Creative",
+    "port": 8188,
+    "description": "Krea-2 / MiniMax H3 image & video generation",
+    "probe": "reuse-comfy",
+    "openable": true
+  },
+  {
+    "id": "n8n",
+    "name": "n8n",
+    "category": "Automation",
+    "port": 5678,
+    "description": "Automation / workflow orchestration",
+    "probe": "http-get",
+    "path": "/healthz",
+    "openable": true
+  },
+  {
+    "id": "postgres",
+    "name": "PostgreSQL",
+    "category": "Infrastructure",
+    "port": 5432,
+    "description": "n8n database",
+    "probe": "static-internal"
+  },
+  {
+    "id": "searxng",
+    "name": "SearXNG",
+    "category": "Infrastructure",
+    "port": 8080,
+    "description": "Web search for n8n AI Assistant",
+    "probe": "static-internal"
+  },
+  {
+    "id": "sandbox",
+    "name": "n8n Code Sandbox",
+    "category": "Infrastructure",
+    "description": "Isolated code execution for n8n AI Assistant",
+    "probe": "static-internal"
+  },
+  {
+    "id": "ssh",
+    "name": "SSH",
+    "category": "System",
+    "port": 22,
+    "description": "Maintenance access",
+    "probe": "mirror-spark-online",
+    "actions": ["copy-ssh"],
+    "sshUser": "mash"
+  },
+  {
+    "id": "sparkdash",
+    "name": "sparkDash",
+    "category": "System",
+    "port": 5555,
+    "description": "This dashboard",
+    "probe": "self"
+  }
+]

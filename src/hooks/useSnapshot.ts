@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { SparkSnapshot, WsSnapshot } from "../api/types";
 import { ingestSnapshots } from "./metricsStore";
-import { OVERVIEW_ID } from "../constants";
+import { OVERVIEW_ID, SERVICES_ID } from "../constants";
 
 const WS_URL = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
 const RECONNECT_DELAY = 2000;
@@ -45,7 +45,7 @@ export function useSnapshot() {
           // Default to the Overview tab; keep the current selection if it
           // is still valid (Overview is always valid).
           setActiveId((prev) => {
-            if (prev === OVERVIEW_ID) return OVERVIEW_ID;
+            if (prev === OVERVIEW_ID || prev === SERVICES_ID) return prev;
             if (prev && msg.sparks.some((s) => s.id === prev)) return prev;
             return OVERVIEW_ID;
           });

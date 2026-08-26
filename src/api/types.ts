@@ -358,6 +358,28 @@ export interface GpuDailyResponse {
   days: GpuDailyDay[];
 }
 
+/* ─── Services launcher ──────────────────────────────────── */
+
+export type ServiceStatus = "online" | "offline" | "degraded" | "internal" | "unknown";
+
+export interface ServiceInfo {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  port: number | null;
+  status: ServiceStatus;
+  openUrl: string | null;
+  apiUrl: string | null;
+  metricsUrl: string | null;
+  copySsh: string | null;
+  workload?: string;
+}
+
+export interface ServicesResponse {
+  services: ServiceInfo[];
+}
+
 /** Security posture badge payload from LlmProbe. */
 export interface LlmPosture {
   /** ok = green, warn = amber, danger = red */

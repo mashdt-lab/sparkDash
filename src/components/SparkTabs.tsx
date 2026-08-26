@@ -19,8 +19,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { SparkSnapshot } from "../api/types";
-import { PlusIcon, GridIcon } from "./ui/icons";
-import { OVERVIEW_ID } from "../constants";
+import { PlusIcon, GridIcon, LaunchIcon } from "./ui/icons";
+import { OVERVIEW_ID, SERVICES_ID } from "../constants";
 
 interface SparkTabsProps {
   sparks: SparkSnapshot[];
@@ -326,6 +326,7 @@ export function SparkTabs({
     return (
       <nav className="pill-nav" aria-label="Sparks">
         <OverviewTab isActive={activeId === OVERVIEW_ID} onSelect={onSelect} />
+        <ServicesTab isActive={activeId === SERVICES_ID} onSelect={onSelect} />
         {sparks.map((spark) => (
           <div key={spark.id} className="shrink-0">
             <TabChrome
@@ -351,6 +352,7 @@ export function SparkTabs({
     >
       <nav className="pill-nav" aria-label="Sparks">
         <OverviewTab isActive={activeId === OVERVIEW_ID} onSelect={onSelect} />
+        <ServicesTab isActive={activeId === SERVICES_ID} onSelect={onSelect} />
         <SortableContext items={items} strategy={horizontalListSortingStrategy}>
           {ordered.map((spark) => (
             <SortableTab
@@ -409,6 +411,27 @@ function OverviewTab({
       >
         <GridIcon className="h-3.5 w-3.5" />
         Overview
+      </button>
+    </div>
+  );
+}
+
+function ServicesTab({
+  isActive,
+  onSelect,
+}: {
+  isActive: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="shrink-0">
+      <button
+        type="button"
+        onClick={() => onSelect(SERVICES_ID)}
+        className={`pill-item ${isActive ? "is-active" : ""}`}
+      >
+        <LaunchIcon className="h-3.5 w-3.5" />
+        Services
       </button>
     </div>
   );
@@ -484,6 +507,15 @@ function MobileSparkMenu({
       >
         <GridIcon className="h-3.5 w-3.5" />
         Overview
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className={`mobile-menu-item ${activeId === SERVICES_ID ? "is-active" : ""}`}
+        onClick={() => handleItemClick(SERVICES_ID)}
+      >
+        <LaunchIcon className="h-3.5 w-3.5" />
+        Services
       </button>
       {sparks.map((spark) => (
         <button
