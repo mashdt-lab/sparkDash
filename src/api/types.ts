@@ -373,6 +373,8 @@ export interface ServiceInfo {
    *  suppressed regardless of status -- independent of whether we can also
    *  determine a real online/offline/degraded state for it). */
   internal: boolean;
+  /** True when this service has a start/stop action wired up server-side. */
+  controllable: boolean;
   openUrl: string | null;
   apiUrl: string | null;
   metricsUrl: string | null;

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ServiceInfo, SparkSnapshot } from "../../api/types";
-import { fetchServices } from "../../api/client";
+import { fetchServices, setServiceAction } from "../../api/client";
 import { ServiceCard } from "./ServiceCard";
 
 const POLL_MS = 8_000;
@@ -9,29 +9,45 @@ const CATEGORY_ORDER = ["AI & Creative", "Automation", "Infrastructure", "System
 export function ServicesPage({ spark }: { spark: SparkSnapshot | null }) {
   const [services, setServices] = useState<ServiceInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const sparkId = spark?.id ?? null;
+  const cancelledRef = useRef(false);
+
+  const load = useCallback(() => {
+    if (!sparkId) return;
+    fetchServices(sparkId)
+      .then((res) => {
+        if (cancelledRef.current) return;
+        setServices(res.services || []);
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelledRef.current) return;
+        setError(err instanceof Error ? err.message : String(err));
+      });
+  }, [sparkId]);
 
   useEffect(() => {
-    if (!spark) return;
-    let cancelled = false;
-    const load = () => {
-      fetchServices(spark.id)
-        .then((res) => {
-          if (cancelled) return;
-          setServices(res.services || []);
-          setError(null);
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
+    if (!sparkId) return;
+    cancelledRef.current = false;
     load();
     const t = setInterval(load, POLL_MS);
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       clearInterval(t);
     };
-  }, [spark]);
+  }, [sparkId, load]);
+
+  const handleAction = useCallback(
+    async (serviceId: string, action: "activate" | "deactivate") => {
+      if (!sparkId) return;
+      await setServiceAction(sparkId, serviceId, action);
+      // Docker start/stop for a large model server isn't instant -- give it a
+      // moment before the next poll picks up the real state, then refresh
+      // right away instead of waiting up to POLL_MS for the next tick.
+      setTimeout(load, 1500);
+    },
+    [sparkId, load]
+  );
 
   if (!spark) {
     return (
@@ -83,7 +99,7 @@ export function ServicesPage({ spark }: { spark: SparkSnapshot | null }) {
             style={{ gap: "var(--density-page-gap)" }}
           >
             {byCategory.get(category)!.map((svc) => (
-              <ServiceCard key={svc.id} service={svc} />
+              <ServiceCard key={svc.id} service={svc} onAction={handleAction} />
             ))}
           </div>
         </section>
