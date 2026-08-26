@@ -255,6 +255,19 @@ least once via its own `start.sh` on the host before the dashboard can
 start it (the dashboard only ever starts/stops an *existing* container —
 it never creates one).
 
+## 8. Live decode tok/s on Services tab LLM cards
+
+**Problem:** section 7 made a service's live modelId visible once online,
+but told nothing about whether it was actually generating or how fast —
+the same `generationTps` already shown on the Overview tab's LLM panel
+wasn't carried over to the Services cards.
+
+**Fix:** `docker-container-llm` and `reuse-llm` now attach
+`tokensPerSecond` (straight from the existing per-poll LLM probe output)
+alongside the `workload` label; `ServiceCard` renders it next to the
+model id, e.g. `RadixArk/Qwen3.8-27B-NVFP4 · 25 tok/s`, matching the
+`.toFixed(0)` convention `OverviewPage.tsx` already uses.
+
 ## Not changed
 
 Everything else — ComfyUI monitoring, Hermes Agent, Tailnet probe, the sandbox stack
