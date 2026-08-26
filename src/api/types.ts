@@ -380,6 +380,8 @@ export interface ServiceInfo {
   metricsUrl: string | null;
   copySsh: string | null;
   workload?: string;
+  /** Live decode throughput for an LLM service, when it's actually serving. */
+  tokensPerSecond?: number | null;
 }
 
 export interface ServicesResponse {

@@ -200,7 +200,14 @@ async function resolveStatus(entry, sparkSnapshot) {
         idx >= 0 && Array.isArray(sparkSnapshot.metrics?.llm)
           ? sparkSnapshot.metrics.llm[idx]
           : null;
-      return { status, extra: match?.modelId ? { workload: match.modelId } : undefined };
+      if (!match?.modelId) return { status };
+      return {
+        status,
+        extra: {
+          workload: match.modelId,
+          tokensPerSecond: typeof match.generationTps === "number" ? match.generationTps : null,
+        },
+      };
     }
     case "reuse-llm": {
       // metrics.llm[] lines up 1:1 with the Spark's own llmPorts[] (same
@@ -216,7 +223,12 @@ async function resolveStatus(entry, sparkSnapshot) {
           : null;
       return {
         status: match?.available ? "online" : "offline",
-        extra: match?.modelId ? { workload: match.modelId } : undefined,
+        extra: match?.modelId
+          ? {
+              workload: match.modelId,
+              tokensPerSecond: typeof match.generationTps === "number" ? match.generationTps : null,
+            }
+          : undefined,
       };
     }
     case "reuse-comfy": {

@@ -108,6 +108,9 @@ export function ServiceCard({
       {service.workload && (
         <p className="truncate font-tabular text-[11px] text-text" title={service.workload}>
           {service.workload}
+          {typeof service.tokensPerSecond === "number" && (
+            <span className="text-muted"> · {service.tokensPerSecond.toFixed(0)} tok/s</span>
+          )}
         </p>
       )}
 
