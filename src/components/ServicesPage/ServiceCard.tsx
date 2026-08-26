@@ -61,7 +61,7 @@ export function ServiceCard({ service }: { service: ServiceInfo }) {
     }
   };
 
-  const isInternal = service.status === "internal";
+  const isInternal = service.internal;
 
   return (
     <div

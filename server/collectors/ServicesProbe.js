@@ -18,17 +18,51 @@
  *                         the local Spark, and the sparkDash container shares
  *                         the host network namespace (network_mode: host) —
  *                         same reasoning as llmProbeHost().
- *   static-internal     — no network path exists (confirmed: these services
- *                         aren't published on the host at all), so no probe
- *                         is attempted; always "internal".
+ *   docker-container    — read-only GET to the Docker Engine API over the
+ *                         host's own docker.sock, reachable at
+ *                         /host/root/run/docker.sock through the *existing*
+ *                         host-root bind mount (see DOCKER_SOCKET_PATH below
+ *                         for the security note on why this path exists at
+ *                         all and what it is/isn't scoped to).
+ *   static-internal     — no probe attempted; always "internal" status.
+ *                         Kept as a manifest option for any future entry
+ *                         that has no resolvable container name.
  *   mirror-spark-online — tracks the Spark's own online/offline state.
  *   self                — this process is answering the request; always online.
+ *
+ * The manifest's "internal": true flag is independent of "probe" — it just
+ * means "no LAN-facing UI for this service" (suppresses the port number in
+ * favour of "Internal only", and openable/api/metrics links). A service can
+ * be internal AND have a real online/offline/degraded status.
  *
  * Browser-facing openUrl is built from spark.lanIp (never 127.0.0.1/localhost),
  * matching ComfyPanel.tsx's comfyOpenUrl() convention.
  */
 import fs from "fs";
+import http from "http";
 import { SERVICES_JSON_PATH, SERVICES_PROBE_TIMEOUT_MS } from "../config.js";
+
+/**
+ * SECURITY NOTE — read this before touching this constant or adding new
+ * docker-container probes.
+ *
+ * This is NOT a socket mounted for this feature. sparkDash's docker-compose.yml
+ * already bind-mounts the host's `/` read-only at /host/root (for nvidia-smi
+ * fallback / host proc-and-sys access) and the container runs as root with
+ * `privileged: true`. That combination happens to make the host's real
+ * /run/docker.sock reachable and connectable here too — root inside the
+ * container matches the socket's owning uid, so the read-only bind mount
+ * does not block using it for IPC (it only blocks writing new files through
+ * that mount path).
+ *
+ * A connection to this socket can issue ANY Docker Engine API call, not
+ * just reads — start/stop/exec/delete on every container on this box. The
+ * code below issues GET-only requests (container inspect) and nothing else.
+ * Do not extend this to POST/DELETE without a real conversation about it
+ * first — this file having *a* Docker API client does not mean this app
+ * should gain container control.
+ */
+const DOCKER_SOCKET_PATH = "/host/root/run/docker.sock";
 
 /** @type {Array<object> | null} */
 let manifestCache = null;
@@ -74,6 +108,61 @@ async function probeHttpGet(port, path = "/", timeoutMs = SERVICES_PROBE_TIMEOUT
 }
 
 /**
+ * GET-only Docker Engine API call over the host's own docker.sock.
+ * @param {string} containerName
+ * @returns {Promise<{ found: boolean, running?: boolean, health?: string | null, error?: boolean }>}
+ */
+function dockerInspect(containerName) {
+  return new Promise((resolve) => {
+    const req = http.get(
+      {
+        socketPath: DOCKER_SOCKET_PATH,
+        path: `/containers/${encodeURIComponent(containerName)}/json`,
+        timeout: SERVICES_PROBE_TIMEOUT_MS,
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          if (res.statusCode === 404) return resolve({ found: false });
+          if (res.statusCode !== 200) return resolve({ found: false, error: true });
+          try {
+            const data = JSON.parse(body);
+            resolve({
+              found: true,
+              running: Boolean(data?.State?.Running),
+              health: data?.State?.Health?.Status || null,
+            });
+          } catch {
+            resolve({ found: false, error: true });
+          }
+        });
+      }
+    );
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ found: false, error: true });
+    });
+    req.on("error", () => resolve({ found: false, error: true }));
+  });
+}
+
+/**
+ * @param {string} containerName
+ * @returns {Promise<"online" | "offline" | "degraded" | "unknown">}
+ */
+async function probeDockerContainer(containerName) {
+  if (!containerName) return "unknown";
+  const state = await dockerInspect(containerName);
+  if (state.error) return "unknown";
+  if (!state.found || !state.running) return "offline";
+  if (state.health === "unhealthy") return "degraded";
+  return "online";
+}
+
+/**
  * @param {object} entry service manifest entry
  * @param {object} sparkSnapshot result of SparkMonitor.snapshot()
  * @returns {Promise<{ status: string, extra?: object }>}
@@ -105,6 +194,8 @@ async function resolveStatus(entry, sparkSnapshot) {
       if (!Number.isInteger(entry.port)) return { status: "offline" };
       return { status: await probeHttpGet(entry.port, entry.path || "/") };
     }
+    case "docker-container":
+      return { status: await probeDockerContainer(entry.container) };
     case "static-internal":
       return { status: "internal" };
     case "mirror-spark-online":
@@ -141,6 +232,7 @@ export async function getServicesSnapshot(sparkSnapshot) {
         description: entry.description,
         port: entry.port ?? null,
         status,
+        internal: Boolean(entry.internal),
         openUrl,
         apiUrl,
         metricsUrl,

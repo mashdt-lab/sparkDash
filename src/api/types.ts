@@ -369,6 +369,10 @@ export interface ServiceInfo {
   description: string;
   port: number | null;
   status: ServiceStatus;
+  /** True when this service has no LAN-facing UI (Open/API/Metrics links are
+   *  suppressed regardless of status -- independent of whether we can also
+   *  determine a real online/offline/degraded state for it). */
+  internal: boolean;
   openUrl: string | null;
   apiUrl: string | null;
   metricsUrl: string | null;
