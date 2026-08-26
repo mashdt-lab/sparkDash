@@ -74,6 +74,11 @@ import { SERVICES_JSON_PATH, SERVICES_PROBE_TIMEOUT_MS } from "../config.js";
  */
 const DOCKER_SOCKET_PATH = "/host/root/run/docker.sock";
 
+// docker stop sends SIGTERM and waits out a grace period (Docker's default
+// is 10s) before SIGKILL -- much longer than the read-only probes' short
+// timeout, which would otherwise misreport a normal stop as a failure.
+const SERVICES_ACTION_TIMEOUT_MS = 15000;
+
 /** @type {Array<object> | null} */
 let manifestCache = null;
 
@@ -251,7 +256,7 @@ function dockerAction(containerName, action) {
         socketPath: DOCKER_SOCKET_PATH,
         path: `/containers/${encodeURIComponent(containerName)}/${action}`,
         method: "POST",
-        timeout: SERVICES_PROBE_TIMEOUT_MS,
+        timeout: SERVICES_ACTION_TIMEOUT_MS,
       },
       (res) => {
         res.resume();
