@@ -68,6 +68,17 @@ export function fetchServices(id: string): Promise<ServicesResponse> {
   return apiFetch(`/api/sparks/${encodeURIComponent(id)}/services`);
 }
 
+export function setServiceAction(
+  sparkId: string,
+  serviceId: string,
+  action: "activate" | "deactivate"
+): Promise<{ ok: boolean; error?: string }> {
+  return apiFetch(
+    `/api/sparks/${encodeURIComponent(sparkId)}/services/${encodeURIComponent(serviceId)}/${action}`,
+    { method: "POST" }
+  );
+}
+
 export function addSpark(config: SparkConfig): Promise<{ success: boolean; spark: SparkConfig }> {
   return apiFetch("/api/sparks", {
     method: "POST",

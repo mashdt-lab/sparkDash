@@ -6,15 +6,35 @@
     "port": 3000,
     "description": "Local AI chat",
     "probe": "http-get",
-    "openable": true
+    "openable": true,
+    "controllable": true,
+    "container": "open-webui"
   },
   {
-    "id": "sglang",
-    "name": "Qwen / SGLang",
+    "id": "sglang-qwen38",
+    "name": "Qwen3.8-27B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "Local OpenAI-compatible LLM server",
-    "probe": "reuse-llm",
+    "description": "SGLang — hybrid GDN, 262K context, MTP speculative decoding",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "qwen3.8-27b-sglang",
+    "exclusiveGroup": "sglang",
+    "actions": [
+      "api",
+      "metrics"
+    ]
+  },
+  {
+    "id": "sglang-qwen3coder",
+    "name": "Qwen3-Coder-30B-A3B",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "SGLang — MoE coding model, 3.3B active, 256K context",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "qwen3-coder-30b-a3b-sglang",
+    "exclusiveGroup": "sglang",
     "actions": [
       "api",
       "metrics"
@@ -27,7 +47,9 @@
     "port": 8188,
     "description": "Krea-2 / MiniMax H3 image & video generation",
     "probe": "reuse-comfy",
-    "openable": true
+    "openable": true,
+    "controllable": true,
+    "container": "spark-comfyui"
   },
   {
     "id": "n8n",
@@ -37,7 +59,9 @@
     "description": "Automation / workflow orchestration",
     "probe": "http-get",
     "path": "/healthz",
-    "openable": true
+    "openable": true,
+    "controllable": true,
+    "container": "n8n"
   },
   {
     "id": "postgres",

@@ -21,7 +21,7 @@ import { showcaseManager } from "./collectors/ShowcaseManager.js";
 import { llmProbeHost } from "./collectors/llmHost.js";
 import { llmDaily } from "./collectors/LlmDaily.js";
 import { gpuDaily } from "./collectors/GpuDaily.js";
-import { getServicesSnapshot } from "./collectors/ServicesProbe.js";
+import { getServicesSnapshot, performServiceAction } from "./collectors/ServicesProbe.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
 
 dotenv.config();
@@ -320,6 +320,24 @@ app.get("/api/sparks/:id/services", async (req, res) => {
   try {
     const services = await getServicesSnapshot(monitor.snapshot());
     res.json({ services });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Start/stop one controllable service (see performServiceAction in
+ * ServicesProbe.js for the allowlist + exclusivity rules). :action is
+ * "activate" or "deactivate" -- anything else, or a :serviceId not marked
+ * controllable in config/services.json, is rejected before any Docker call.
+ */
+app.post("/api/sparks/:id/services/:serviceId/:action", async (req, res) => {
+  const monitor = monitors.get(req.params.id);
+  if (!monitor) return res.status(404).json({ error: "Spark not found" });
+  try {
+    const result = await performServiceAction(req.params.serviceId, req.params.action);
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
