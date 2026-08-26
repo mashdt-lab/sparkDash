@@ -144,6 +144,49 @@ Docker socket mount, no "Switch to Coding/Creative Mode" buttons, no
 Start/Stop/Restart — no safe predefined-command execution path exists yet in
 this fork, and none of it is stubbed in disabled either.
 
+## 6. Real online/offline status for internal services
+
+**Problem:** section 5's Services tab showed PostgreSQL/SearXNG/n8n Code
+Sandbox with a static `"Internal"` label regardless of whether the
+containers were actually running — if Postgres crashed, the dashboard would
+keep saying "Internal" with no hint anything was wrong.
+
+**Found, not introduced:** the sparkDash container can already reach the
+host's real Docker Engine API. The existing `/host/root` read-only bind
+mount (already there for the `nvidia-smi`/`/proc`/`/sys` fallback path) makes
+`/host/root/run/docker.sock` reachable, and the container runs as root,
+which matches the socket's owning uid — the read-only mount only blocks
+writing *files* through it, not using a live socket for IPC. This is
+inherited entirely from upstream's own container design (`privileged: true`,
+`pid: host`, host-root mount); this fork didn't add it, it was already
+sitting there. Flagged explicitly to the user before writing any code that
+uses it, since a connection to that socket can issue *any* Docker Engine API
+call (start/stop/exec/delete on every container on the box), not just reads.
+
+**Fix**, after explicit confirmation this was wanted:
+
+- `server/collectors/ServicesProbe.js`: a GET-only Docker API client
+  (`dockerInspect()`) — inspects one named container's
+  `.State.Running` / `.State.Health.Status` and maps to `online` /
+  `offline` / `degraded`. No POST/DELETE/exec anywhere; documented inline
+  as a hard boundary — this having *a* Docker API client is not license to
+  grow it into container control later without a real conversation first.
+- `config/services.json`: postgres/searxng/sandbox now use
+  `"probe": "docker-container"` with a `"container"` name (`n8n-postgres`,
+  `searxng`, `sandbox-api`), plus a new `"internal": true` flag that's
+  independent of `status` — a service can be internal (no LAN UI, no
+  port shown, no action buttons) *and* have a real online/offline/degraded
+  state at the same time.
+- `src/api/types.ts` / `ServiceCard.tsx`: `ServiceInfo.internal` replaces the
+  old `status === "internal"` check, so the status chip now shows the real
+  state while the "Internal only" treatment stays.
+
+Verified against real container state, not just the happy path: all three
+correctly show `online` (live Docker inspect data), and the `offline` path
+was cross-checked against `sandbox-certs` — a container that's *supposed* to
+exit after running once (`State.Running: false`) — without needing to stop
+anything actually in use.
+
 ## Not changed
 
 Everything else — ComfyUI monitoring, Hermes Agent, Tailnet probe, the sandbox stack
