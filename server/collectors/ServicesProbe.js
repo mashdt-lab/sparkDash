@@ -11,6 +11,10 @@
  * Probe kinds (from the manifest's "probe" field):
  *   reuse-llm          — read spark.metrics.llm[] (existing LlmProbe output);
  *                         no extra network call.
+ *   docker-container-llm — like docker-container (below), for one of
+ *                         several SGLang *profiles* that share a port at
+ *                         different times; attaches the live LLM probe's
+ *                         modelId as a workload label once confirmed online.
  *   reuse-comfy         — read spark.metrics.comfy (existing ComfyProbe output);
  *                         no extra network call.
  *   http-get            — fresh, short-timeout GET to 127.0.0.1:{port}{path}.
@@ -175,11 +179,15 @@ async function probeDockerContainer(containerName) {
  */
 async function resolveStatus(entry, sparkSnapshot) {
   switch (entry.probe) {
-    case "reuse-llm-model": {
-      // Like reuse-llm, but for one of several SGLang *profiles* that can
-      // occupy the same port at different times (only one runs at once) --
-      // "online" only when the live modelId actually matches this profile's
-      // expected served-model-name, not just "something is listening".
+    case "docker-container-llm": {
+      // Ground truth is Docker itself, not the LLM probe's reported modelId
+      // (which turned out to be the raw --model-path, not a stable id we'd
+      // want to hardcode per profile) -- two SGLang profiles share port 8888
+      // at different times, and only one container name is ever "Running".
+      // Once confirmed online, still attach whatever the live LLM probe
+      // reports as a workload label -- informational only.
+      const status = await probeDockerContainer(entry.container);
+      if (status !== "online") return { status };
       const idx = Array.isArray(sparkSnapshot.llmPorts)
         ? sparkSnapshot.llmPorts.indexOf(entry.port)
         : -1;
@@ -187,11 +195,7 @@ async function resolveStatus(entry, sparkSnapshot) {
         idx >= 0 && Array.isArray(sparkSnapshot.metrics?.llm)
           ? sparkSnapshot.metrics.llm[idx]
           : null;
-      const isThisProfile = Boolean(match?.available) && match?.modelId === entry.expectModelId;
-      return {
-        status: isThisProfile ? "online" : "offline",
-        extra: isThisProfile && match?.modelId ? { workload: match.modelId } : undefined,
-      };
+      return { status, extra: match?.modelId ? { workload: match.modelId } : undefined };
     }
     case "reuse-llm": {
       // metrics.llm[] lines up 1:1 with the Spark's own llmPorts[] (same
