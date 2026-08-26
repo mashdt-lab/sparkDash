@@ -56,11 +56,17 @@ import { SERVICES_JSON_PATH, SERVICES_PROBE_TIMEOUT_MS } from "../config.js";
  * that mount path).
  *
  * A connection to this socket can issue ANY Docker Engine API call, not
- * just reads — start/stop/exec/delete on every container on this box. The
- * code below issues GET-only requests (container inspect) and nothing else.
- * Do not extend this to POST/DELETE without a real conversation about it
- * first — this file having *a* Docker API client does not mean this app
- * should gain container control.
+ * just reads — start/stop/exec/delete on every container on this box.
+ *
+ * 2026-08-26: extended, with explicit sign-off, to also issue POST
+ * .../start and .../stop for a small, manifest-driven allowlist of named
+ * containers (see performServiceAction below) — never restart, exec,
+ * delete, create, or anything accepting a client-supplied image/command.
+ * The set of controllable containers and their exclusivity groups (e.g.
+ * "only one SGLang profile at a time") live entirely in config/services.json,
+ * not in any request body, so the browser can only ever trigger one of the
+ * pre-defined actions already listed there — never an arbitrary container
+ * name or Docker API call.
  */
 const DOCKER_SOCKET_PATH = "/host/root/run/docker.sock";
 
@@ -169,6 +175,24 @@ async function probeDockerContainer(containerName) {
  */
 async function resolveStatus(entry, sparkSnapshot) {
   switch (entry.probe) {
+    case "reuse-llm-model": {
+      // Like reuse-llm, but for one of several SGLang *profiles* that can
+      // occupy the same port at different times (only one runs at once) --
+      // "online" only when the live modelId actually matches this profile's
+      // expected served-model-name, not just "something is listening".
+      const idx = Array.isArray(sparkSnapshot.llmPorts)
+        ? sparkSnapshot.llmPorts.indexOf(entry.port)
+        : -1;
+      const match =
+        idx >= 0 && Array.isArray(sparkSnapshot.metrics?.llm)
+          ? sparkSnapshot.metrics.llm[idx]
+          : null;
+      const isThisProfile = Boolean(match?.available) && match?.modelId === entry.expectModelId;
+      return {
+        status: isThisProfile ? "online" : "offline",
+        extra: isThisProfile && match?.modelId ? { workload: match.modelId } : undefined,
+      };
+    }
     case "reuse-llm": {
       // metrics.llm[] lines up 1:1 with the Spark's own llmPorts[] (same
       // index — see SparkMonitor's per-port LlmProbe map), so match this
@@ -208,6 +232,88 @@ async function resolveStatus(entry, sparkSnapshot) {
 }
 
 /**
+ * POST-only Docker Engine API call over the host's own docker.sock —
+ * .../start or .../stop for one named container. Never called with a
+ * container name that didn't come from config/services.json (see
+ * performServiceAction).
+ * @param {string} containerName
+ * @param {"start" | "stop"} action
+ * @returns {Promise<{ ok: boolean, status: number }>}
+ */
+function dockerAction(containerName, action) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        socketPath: DOCKER_SOCKET_PATH,
+        path: `/containers/${encodeURIComponent(containerName)}/${action}`,
+        method: "POST",
+        timeout: SERVICES_PROBE_TIMEOUT_MS,
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => {
+          // 204 = did it; 304 = already in that state -- both count as success.
+          resolve({ ok: res.statusCode === 204 || res.statusCode === 304, status: res.statusCode });
+        });
+      }
+    );
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ ok: false, status: 0 });
+    });
+    req.on("error", () => resolve({ ok: false, status: 0 }));
+    req.end();
+  });
+}
+
+/**
+ * Start or stop one controllable service by its manifest id. The only
+ * inputs that matter are `serviceId` (must match a config/services.json
+ * entry with `controllable: true`) and `action` -- never a container name
+ * or Docker API path from the caller. For a service with an
+ * `exclusiveGroup` (the two SGLang profiles share "sglang"), activating it
+ * first stops every other member of that group, since only one large LLM
+ * server runs on this box at a time.
+ * @param {string} serviceId
+ * @param {"activate" | "deactivate"} action
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function performServiceAction(serviceId, action) {
+  if (action !== "activate" && action !== "deactivate") {
+    return { ok: false, error: `unknown action "${action}"` };
+  }
+  const manifest = loadManifest();
+  const entry = manifest.find((e) => e.id === serviceId);
+  if (!entry || !entry.controllable || !entry.container) {
+    return { ok: false, error: `"${serviceId}" is not a controllable service` };
+  }
+
+  if (action === "deactivate") {
+    const r = await dockerAction(entry.container, "stop");
+    if (r.ok) return { ok: true };
+    return { ok: false, error: `docker stop failed (HTTP ${r.status})` };
+  }
+
+  if (entry.exclusiveGroup) {
+    const others = manifest.filter(
+      (e) => e.exclusiveGroup === entry.exclusiveGroup && e.id !== entry.id && e.container
+    );
+    for (const other of others) {
+      await dockerAction(other.container, "stop");
+    }
+  }
+  const r = await dockerAction(entry.container, "start");
+  if (r.ok) return { ok: true };
+  if (r.status === 404) {
+    return {
+      ok: false,
+      error: `container "${entry.container}" doesn't exist yet — run its start.sh once on the host first`,
+    };
+  }
+  return { ok: false, error: `docker start failed (HTTP ${r.status})` };
+}
+
+/**
  * @param {object} sparkSnapshot result of SparkMonitor.snapshot()
  * @returns {Promise<Array<object>>}
  */
@@ -233,6 +339,7 @@ export async function getServicesSnapshot(sparkSnapshot) {
         port: entry.port ?? null,
         status,
         internal: Boolean(entry.internal),
+        controllable: Boolean(entry.controllable && entry.container),
         openUrl,
         apiUrl,
         metricsUrl,

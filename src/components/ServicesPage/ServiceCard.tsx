@@ -4,7 +4,7 @@ import { ActivityIcon, BotIcon, ComfyIcon, ExternalLinkIcon } from "../ui/icons"
 
 function ServiceIcon({ id, className }: { id: string; className: string }) {
   if (id === "comfyui") return <ComfyIcon className={className} />;
-  if (id === "sglang" || id === "open-webui") return <BotIcon className={className} />;
+  if (id.startsWith("sglang") || id === "open-webui") return <BotIcon className={className} />;
   return <ActivityIcon className={className} />;
 }
 
@@ -38,8 +38,33 @@ function openInNewTab(url: string) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-export function ServiceCard({ service }: { service: ServiceInfo }) {
+export function ServiceCard({
+  service,
+  onAction,
+}: {
+  service: ServiceInfo;
+  onAction?: (serviceId: string, action: "activate" | "deactivate") => Promise<void>;
+}) {
   const [copied, setCopied] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const isOn = service.status === "online" || service.status === "degraded";
+
+  const handleToggle = async (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!onAction || pending) return;
+    setPending(true);
+    setActionError(null);
+    try {
+      await onAction(service.id, isOn ? "deactivate" : "activate");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPending(false);
+    }
+  };
 
   const handleOpen = (e: MouseEvent, url: string | null) => {
     e.preventDefault();
@@ -86,6 +111,12 @@ export function ServiceCard({ service }: { service: ServiceInfo }) {
         </p>
       )}
 
+      {actionError && (
+        <p className="text-[11px] text-danger" title={actionError}>
+          {actionError}
+        </p>
+      )}
+
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2">
         <span className="font-tabular text-[11px] text-muted">
           {isInternal ? "Internal only" : service.port != null ? `:${service.port}` : "—"}
@@ -129,6 +160,20 @@ export function ServiceCard({ service }: { service: ServiceInfo }) {
               className="rounded-md border border-border bg-surface-elevated px-2 py-1 text-[11px] text-text hover:bg-accent-soft hover:text-accent transition-colors"
             >
               {copied ? "Copied" : "Copy SSH command"}
+            </button>
+          )}
+          {service.controllable && onAction && (
+            <button
+              type="button"
+              onClick={handleToggle}
+              disabled={pending}
+              className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-60 ${
+                isOn
+                  ? "border-border bg-surface-elevated text-text hover:bg-danger/10 hover:text-danger"
+                  : "border-accent/40 bg-accent-soft text-accent hover:bg-accent/20"
+              }`}
+            >
+              {pending ? "…" : isOn ? "Deactivate" : "Activate"}
             </button>
           )}
         </div>
