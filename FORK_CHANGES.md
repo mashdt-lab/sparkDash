@@ -89,6 +89,61 @@ sparkDash. It does not backfill history from a pre-existing, separate
 `thermal_monitor.log` (written by this fork's `spark-comfyui.sh status --watch`) —
 that's a different tool with its own log file, not something sparkDash reads.
 
+## 5. Native "Services" launcher tab
+
+**Problem:** this deployment runs a growing stack (Open WebUI, Qwen/SGLang,
+ComfyUI, n8n, sparkDash itself, plus internal-only Postgres/SearXNG/n8n Code
+Sandbox) with no single place inside sparkDash to see what's up and jump to
+it — just remembered ports and bookmarks.
+
+**Fix:** a new "Services" tab, slotted into the exact same sentinel-id
+machinery the existing "Overview" tab already uses (`OVERVIEW_ID` in
+`src/constants.ts` → added `SERVICES_ID` alongside it, wired through
+`useRoute.ts`, `SparkTabs.tsx`, `App.tsx`), so it's a first-class tab with its
+own clean URL (`/services`), not a separate page or iframe.
+
+- `config/services.json` (new, tracked in git): a small static manifest —
+  id/name/category/port/description/probe-kind/actions — describing this
+  fork's fixed service stack. Editable without touching any component.
+- `server/collectors/ServicesProbe.js` (new): resolves each entry's live
+  status per its probe kind. **sglang and ComfyUI reuse the existing
+  `LlmProbe`/`ComfyProbe` output** (`spark.metrics.llm[]` / `spark.metrics.
+  comfy`) instead of a second independent probe. Open WebUI and n8n get a
+  fresh short-timeout `GET` (n8n's `/healthz`; Open WebUI a plain `GET /`
+  since it was stopped at implementation time and its health endpoint
+  couldn't be verified without starting it). Postgres/SearXNG/Sandbox are
+  static `"internal"` — confirmed via `ss -tlnp` that sparkDash (which runs
+  `network_mode: host`) has no network route to any of them at all, so this
+  isn't a skipped probe, there's no path to probe. **No Docker socket
+  involved anywhere** — confirmed absent from the container both before and
+  after this change; container-state probing was considered and dropped, per
+  the same "don't weaken security for a launcher" principle as everything
+  else in this fork.
+- New route `GET /api/sparks/:id/services`, request-driven like the existing
+  `/gpu/daily` and `/llm/daily` routes rather than joining the WebSocket
+  snapshot loop.
+- `src/components/ServicesPage/{ServicesPage,ServiceCard}.tsx` (new): cards
+  grouped into AI & Creative / Automation / Infrastructure / System, reusing
+  the `.panel` card chrome and the Overview page's grid convention. Status
+  chips use the existing `--color-success`/`--color-muted` tokens —
+  deliberately not danger-red for "offline", since an intentionally-stopped
+  ComfyUI (e.g. mid Coding-Mode) isn't a failure. Every Open/API/Metrics link
+  is built from `spark.lanIp` (the same rule `ComfyPanel.tsx`'s
+  `comfyOpenUrl()` already follows) — never `127.0.0.1`/`localhost` in a link
+  rendered for the browser.
+- New `LaunchIcon` in `ui/icons.tsx`, same minimal stroke-SVG style as every
+  other icon here — no icon package added.
+
+**Bug fixed along the way:** `useSnapshot.ts`'s WebSocket-driven `activeId`
+reconciliation only special-cased `OVERVIEW_ID` as an always-valid non-Spark
+id; every ~2s snapshot tick was silently bouncing the new Services tab back
+to Overview. Added `SERVICES_ID` to that same check.
+
+**Not implemented** (matches the scope of the request that drove this): no
+Docker socket mount, no "Switch to Coding/Creative Mode" buttons, no
+Start/Stop/Restart — no safe predefined-command execution path exists yet in
+this fork, and none of it is stubbed in disabled either.
+
 ## Not changed
 
 Everything else — ComfyUI monitoring, Hermes Agent, Tailnet probe, the sandbox stack
