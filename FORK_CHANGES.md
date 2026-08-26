@@ -187,6 +187,74 @@ was cross-checked against `sandbox-certs` — a container that's *supposed* to
 exit after running once (`State.Running: false`) — without needing to stop
 anything actually in use.
 
+## 7. Real Start/Stop control for n8n, Open WebUI, ComfyUI, and SGLang
+
+**Problem:** section 6 made the Services tab's status honest, but doing
+anything about a stopped service still meant SSHing in. With a second
+SGLang profile now in play (Qwen3-Coder-30B-A3B alongside Qwen3.8-27B —
+this box only runs one large LLM server at a time), switching between
+them from the dashboard needed more than a status dot.
+
+**Fix**, after explicitly flagging the security step-up this represents
+(section 6's Docker API client was GET-only by design) and getting
+confirmation to extend it:
+
+- `server/collectors/ServicesProbe.js`: `dockerAction()` issues POST
+  `.../start` and `.../stop` over the same `docker.sock` path section 6
+  already uses — nothing else (no restart/exec/delete/create, and no
+  endpoint that takes an image, mount, or command from the request).
+  `performServiceAction(serviceId, action)` is the only entry point: it
+  looks `serviceId` up in `config/services.json`, refuses anything not
+  marked `"controllable": true`, and for a service with an
+  `exclusiveGroup` (see below) stops every other member of that group
+  before starting it. The browser can only ever trigger one of the
+  actions already listed in that file — never an arbitrary container
+  name.
+- `config/services.json`: `"controllable": true` + `"container": "<name>"`
+  on n8n, Open WebUI, ComfyUI, and both SGLang profiles. The single
+  `sglang` entry became two — `sglang-qwen38` and `sglang-qwen3coder` —
+  sharing port 8888 with `"exclusiveGroup": "sglang"`, so activating
+  either one stops the other first.
+- New probe kind `docker-container-llm`: the two SGLang profiles needed a
+  status check that doesn't confuse "something is listening on 8888" with
+  "this specific profile is the one running". The first attempt tried
+  matching the live LLM probe's `modelId` against a hardcoded per-profile
+  value, but that field turned out to be the raw `--model-path`
+  (`RadixArk/Qwen3.8-27B-NVFP4`), not a stable id worth hardcoding sight
+  unseen for a profile that hadn't been started even once yet. Switched to
+  checking the container's actual `State.Running` via `docker.sock` (the
+  same mechanism section 6 already proved out for postgres/searxng/sandbox)
+  and only attaching the live `modelId` as an informational workload label
+  once that's confirmed online.
+- `server/index.js`: `POST /api/sparks/:id/services/:serviceId/:action`
+  (`action` is `activate` or `deactivate`), rejecting anything else before
+  any Docker call is made.
+- Frontend: `ServiceCard` gets an Activate/Deactivate button (disabled
+  while pending, inline error message on failure — e.g. the coder
+  profile's container not existing yet until its own `start.sh` has run
+  once); `ServicesPage` wires it to the new endpoint and force-refreshes
+  ~1.5s later rather than waiting for the next 8s poll.
+
+**Bug found during testing:** the first version reused the read-only
+probes' 1500ms timeout for start/stop calls too. `docker stop` sends
+SIGTERM and can legitimately wait out several seconds of grace period
+before SIGKILL, so every real stop was misreported as a failure
+(`HTTP 0`, i.e. the request itself timed out) even though the container
+stopped correctly. Actions now use their own 15s timeout, separate from
+the probes'.
+
+Verified live: Open WebUI activate/deactivate round-tripped correctly
+(container reached `healthy`, then `Exited (0)` on the way back down)
+without touching the SGLang container that was actively serving a
+request throughout.
+
+**Not implemented:** restart, exec, or any action outside start/stop;
+no way to change a container's image, mounts, environment, or command
+from the browser. The Qwen3-Coder-30B-A3B container has to be created at
+least once via its own `start.sh` on the host before the dashboard can
+start it (the dashboard only ever starts/stops an *existing* container —
+it never creates one).
+
 ## Not changed
 
 Everything else — ComfyUI monitoring, Hermes Agent, Tailnet probe, the sandbox stack
