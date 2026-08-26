@@ -21,6 +21,7 @@ import { showcaseManager } from "./collectors/ShowcaseManager.js";
 import { llmProbeHost } from "./collectors/llmHost.js";
 import { llmDaily } from "./collectors/LlmDaily.js";
 import { gpuDaily } from "./collectors/GpuDaily.js";
+import { getServicesSnapshot } from "./collectors/ServicesProbe.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
 
 dotenv.config();
@@ -306,6 +307,22 @@ app.get("/api/sparks/:id/metrics", (req, res) => {
   const monitor = monitors.get(req.params.id);
   if (!monitor) return res.status(404).json({ error: "Spark not found" });
   res.json(monitor.snapshot());
+});
+
+/**
+ * Services launcher tab: status + open/API/metrics links for every service
+ * in config/services.json. Request-driven (not part of the WS snapshot loop)
+ * -- see server/collectors/ServicesProbe.js for the per-probe-kind logic.
+ */
+app.get("/api/sparks/:id/services", async (req, res) => {
+  const monitor = monitors.get(req.params.id);
+  if (!monitor) return res.status(404).json({ error: "Spark not found" });
+  try {
+    const services = await getServicesSnapshot(monitor.snapshot());
+    res.json({ services });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Test SSH + LLM connectivity for a registered Spark.

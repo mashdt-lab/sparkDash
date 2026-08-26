@@ -21,6 +21,11 @@ const LLM_DAILY_JSON_PATH =
 /** Daily GPU temp/power rollups (gitignored). */
 const GPU_DAILY_JSON_PATH =
   process.env.GPU_DAILY_JSON_PATH || path.join(ROOT, "config", "gpu-daily.json");
+/** Static service launcher manifest (tracked in git — describes this deployment). */
+const SERVICES_JSON_PATH =
+  process.env.SERVICES_JSON_PATH || path.join(ROOT, "config", "services.json");
+/** Timeout for the Services tab liveness probes (ms). */
+const SERVICES_PROBE_TIMEOUT_MS = parseInt(process.env.SERVICES_PROBE_TIMEOUT_MS || "1500", 10);
 
 // ─── LLM / Comfy probe timeouts ──────────────────────────
 const LLM_PROBE_TIMEOUT_MS = 3000;
@@ -99,6 +104,8 @@ export {
   SECRETS_KEY_PATH,
   LLM_DAILY_JSON_PATH,
   GPU_DAILY_JSON_PATH,
+  SERVICES_JSON_PATH,
+  SERVICES_PROBE_TIMEOUT_MS,
   LLM_PROBE_TIMEOUT_MS,
   COMFY_PROBE_TIMEOUT_MS,
   TAILSCALE_PROBE_TIMEOUT_MS,

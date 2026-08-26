@@ -6,6 +6,7 @@ import type {
   LlmMetrics,
   LlmDailyResponse,
   GpuDailyResponse,
+  ServicesResponse,
   Settings,
   ShowcaseListResponse,
   ShowcaseSessionState,
@@ -61,6 +62,10 @@ export function fetchLlmDaily(
 export function fetchGpuDaily(id: string, days = 14): Promise<GpuDailyResponse> {
   const q = new URLSearchParams({ days: String(days) });
   return apiFetch(`/api/sparks/${encodeURIComponent(id)}/gpu/daily?${q.toString()}`);
+}
+
+export function fetchServices(id: string): Promise<ServicesResponse> {
+  return apiFetch(`/api/sparks/${encodeURIComponent(id)}/services`);
 }
 
 export function addSpark(config: SparkConfig): Promise<{ success: boolean; spark: SparkConfig }> {
