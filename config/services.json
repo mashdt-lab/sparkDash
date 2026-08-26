@@ -15,7 +15,10 @@
     "port": 8888,
     "description": "Local OpenAI-compatible LLM server",
     "probe": "reuse-llm",
-    "actions": ["api", "metrics"]
+    "actions": [
+      "api",
+      "metrics"
+    ]
   },
   {
     "id": "comfyui",
@@ -42,7 +45,9 @@
     "category": "Infrastructure",
     "port": 5432,
     "description": "n8n database",
-    "probe": "static-internal"
+    "probe": "docker-container",
+    "container": "n8n-postgres",
+    "internal": true
   },
   {
     "id": "searxng",
@@ -50,14 +55,18 @@
     "category": "Infrastructure",
     "port": 8080,
     "description": "Web search for n8n AI Assistant",
-    "probe": "static-internal"
+    "probe": "docker-container",
+    "container": "searxng",
+    "internal": true
   },
   {
     "id": "sandbox",
     "name": "n8n Code Sandbox",
     "category": "Infrastructure",
     "description": "Isolated code execution for n8n AI Assistant",
-    "probe": "static-internal"
+    "probe": "docker-container",
+    "container": "sandbox-api",
+    "internal": true
   },
   {
     "id": "ssh",
@@ -66,7 +75,9 @@
     "port": 22,
     "description": "Maintenance access",
     "probe": "mirror-spark-online",
-    "actions": ["copy-ssh"],
+    "actions": [
+      "copy-ssh"
+    ],
     "sshUser": "mash"
   },
   {
