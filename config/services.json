@@ -41,6 +41,21 @@
     ]
   },
   {
+    "id": "flashnext",
+    "name": "Qwen3.8-Flash-Next",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "llama.cpp — UD-Q2_K_XL quant, hybrid GDN+MoE, experimental",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "qwen38-flash-next-llama",
+    "exclusiveGroup": "sglang",
+    "actions": [
+      "api",
+      "metrics"
+    ]
+  },
+  {
     "id": "comfyui",
     "name": "ComfyUI",
     "category": "AI & Creative",
