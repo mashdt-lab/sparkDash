@@ -4,7 +4,7 @@ import { ActivityIcon, BotIcon, ComfyIcon, ExternalLinkIcon } from "../ui/icons"
 
 function ServiceIcon({ id, className }: { id: string; className: string }) {
   if (id === "comfyui") return <ComfyIcon className={className} />;
-  if (id.startsWith("sglang") || id === "open-webui") return <BotIcon className={className} />;
+  if (id.startsWith("sglang") || id === "flashnext" || id === "open-webui") return <BotIcon className={className} />;
   return <ActivityIcon className={className} />;
 }
 
