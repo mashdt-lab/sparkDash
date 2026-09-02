@@ -299,6 +299,42 @@ function dockerAction(containerName, action) {
  * @param {"activate" | "deactivate"} action
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
+function dockerSwitch(switchArg) {
+  const body = JSON.stringify({
+    Cmd: ["bash", "-lc", `cd /opt/ai/gateway && nohup ./switch-backend.sh ${switchArg} >/tmp/sparkdash-switch.log 2>&1 &`],
+    AttachStdout: false, AttachStderr: false, Tty: false,
+  });
+  return new Promise((resolve) => {
+    const req = http.request(
+      { socketPath: DOCKER_SOCKET_PATH, path: "/containers/sglang-switch/exec", method: "POST",
+        timeout: SERVICES_ACTION_TIMEOUT_MS,
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } },
+      (res) => {
+        let d = "";
+        res.on("data", (c) => (d += c));
+        res.on("end", () => {
+          if (res.statusCode !== 201) return resolve({ ok: false, status: res.statusCode });
+          let id;
+          try { id = JSON.parse(d).Id; } catch { return resolve({ ok: false, status: 0 }); }
+          const sb = JSON.stringify({ Detach: true, Tty: false });
+          const r2 = http.request(
+            { socketPath: DOCKER_SOCKET_PATH, path: `/exec/${id}/start`, method: "POST",
+              timeout: SERVICES_ACTION_TIMEOUT_MS,
+              headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(sb) } },
+            (res2) => { res2.resume(); res2.on("end", () => resolve({ ok: res2.statusCode === 200 || res2.statusCode === 204, status: res2.statusCode })); }
+          );
+          r2.on("timeout", () => { r2.destroy(); resolve({ ok: false, status: 0 }); });
+          r2.on("error", () => resolve({ ok: false, status: 0 }));
+          r2.end(sb);
+        });
+      }
+    );
+    req.on("timeout", () => { req.destroy(); resolve({ ok: false, status: 0 }); });
+    req.on("error", () => resolve({ ok: false, status: 0 }));
+    req.end(body);
+  });
+}
+
 export async function performServiceAction(serviceId, action) {
   if (action !== "activate" && action !== "deactivate") {
     return { ok: false, error: `unknown action "${action}"` };
@@ -313,6 +349,14 @@ export async function performServiceAction(serviceId, action) {
     const r = await dockerAction(entry.container, "stop");
     if (r.ok) return { ok: true };
     return { ok: false, error: `docker stop failed (HTTP ${r.status})` };
+  }
+
+  if (entry.switchArg && /^[a-z0-9-]+$/.test(entry.switchArg)) {
+    const sw = await dockerSwitch(entry.switchArg);
+    if (sw.ok) {
+      return { ok: true, message: `activating ${entry.name} via switch-backend.sh \u2014 model load can take 5-15 min; watch the Services status` };
+    }
+    return { ok: false, error: `switch-backend exec failed (HTTP ${sw.status}) \u2014 is the sglang-switch container up?` };
   }
 
   if (entry.exclusiveGroup) {

@@ -11,11 +11,27 @@
     "container": "open-webui"
   },
   {
+    "id": "muse-glimmer",
+    "name": "Muse-Glimmer",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "SGLang \u2014 Muse-Glimmer NVFP4 VLM (chat), ATEM protocol",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "muse-glimmer-sglang",
+    "exclusiveGroup": "sglang",
+    "switchArg": "muse-glimmer",
+    "actions": [
+      "api",
+      "metrics"
+    ]
+  },
+  {
     "id": "sglang-qwen38",
     "name": "Qwen3.8-27B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "SGLang — hybrid GDN, 262K context, MTP speculative decoding",
+    "description": "SGLang \u2014 hybrid GDN, 262K ctx, DSpark speculative decoding",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "qwen3.8-27b-sglang",
@@ -23,14 +39,15 @@
     "actions": [
       "api",
       "metrics"
-    ]
+    ],
+    "switchArg": "qwen38-27b"
   },
   {
     "id": "sglang-qwen3coder",
     "name": "Qwen3-Coder-30B-A3B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "SGLang — MoE coding model, 3.3B active, 256K context",
+    "description": "SGLang \u2014 MoE coding model, 3.3B active, 256K context",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "qwen3-coder-30b-a3b-sglang",
@@ -38,22 +55,24 @@
     "actions": [
       "api",
       "metrics"
-    ]
+    ],
+    "switchArg": "qwen3-coder"
   },
   {
     "id": "flashnext",
     "name": "Qwen3.8-Flash-Next",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "llama.cpp — UD-Q2_K_XL quant, hybrid GDN+MoE, experimental",
+    "description": "vLLM (blazux) \u2014 NVFP4 + fp8 hybrid, PLE mmap, MTP=2, prefix cache, deterministic",
     "probe": "docker-container-llm",
     "controllable": true,
-    "container": "qwen38-flash-next-llama",
+    "container": "qwen38-flash",
     "exclusiveGroup": "sglang",
     "actions": [
       "api",
       "metrics"
-    ]
+    ],
+    "switchArg": "qwen38-flash"
   },
   {
     "id": "comfyui",
