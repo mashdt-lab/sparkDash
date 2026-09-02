@@ -182,6 +182,31 @@ async function probeDockerContainer(containerName) {
  * @param {object} sparkSnapshot result of SparkMonitor.snapshot()
  * @returns {Promise<{ status: string, extra?: object }>}
  */
+function dockerLogsTail(containerName, tail) {
+  return new Promise((resolve) => {
+    const req = http.get(
+      { socketPath: DOCKER_SOCKET_PATH,
+        path: `/containers/${encodeURIComponent(containerName)}/logs?stdout=1&stderr=1&tail=${tail}`,
+        timeout: SERVICES_PROBE_TIMEOUT_MS },
+      (res) => { let b = ""; res.setEncoding("utf8");
+        res.on("data", (c) => (b += c)); res.on("end", () => resolve(b)); }
+    );
+    req.on("timeout", () => { req.destroy(); resolve(""); });
+    req.on("error", () => resolve(""));
+  });
+}
+
+// Turn a chunk of recent model-server log into a one-word/short load phase.
+function parseLoadPhase(t) {
+  const pct = [...t.matchAll(/(?:Loading safetensors checkpoint shards|Multi-thread loading shards):\s*(\d+)%/g)];
+  if (pct.length) return `loading weights ${pct[pct.length - 1][1]}%`;
+  if (/Application startup complete|The server is fired up|Uvicorn running/.test(t)) return "warming up";
+  if (/Capturing (?:CUDA graph|num tokens)|CUDA graph begin|capture cuda graph/i.test(t)) return "capturing CUDA graphs";
+  if (/KV [Cc]ache is allocated|Memory pool end|Available KV cache memory|GPU KV cache size/.test(t)) return "allocating KV cache";
+  if (/torch\.compile|Compiling a graph|Dynamo bytecode|Load weight (?:begin|end)/.test(t)) return "compiling / loading";
+  return "starting";
+}
+
 async function resolveStatus(entry, sparkSnapshot) {
   switch (entry.probe) {
     case "docker-container-llm": {
@@ -200,7 +225,10 @@ async function resolveStatus(entry, sparkSnapshot) {
         idx >= 0 && Array.isArray(sparkSnapshot.metrics?.llm)
           ? sparkSnapshot.metrics.llm[idx]
           : null;
-      if (!match?.modelId) return { status };
+      if (!match?.modelId) {
+        const logs = await dockerLogsTail(entry.container, 60);
+        return { status, extra: { workload: `loading \u2014 ${parseLoadPhase(logs)}` } };
+      }
       return {
         status,
         extra: {
