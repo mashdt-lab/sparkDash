@@ -1,4 +1,4 @@
-import type { GpuMetrics } from "../../api/types";
+import type { GpuMetrics, CpuMetrics } from "../../api/types";
 import { Sparkline } from "../ui/Sparkline";
 import { Panel } from "../ui/Panel";
 import { ActivityIcon } from "../ui/icons";
@@ -8,6 +8,10 @@ import { GpuDailyChart } from "./GpuDailyChart";
 
 interface GpuPanelProps {
   gpu: GpuMetrics | null;
+  // Sparks don't get a separate RAM/CPU panel (see RamPanel.tsx), so on a
+  // Spark this is the only place CPU temperature is visible. Pass it in
+  // only where RamPanel isn't already rendered, to avoid showing it twice.
+  cpu?: CpuMetrics | null;
   sparkId: string;
   temperatureUnit: "celsius" | "fahrenheit";
   className?: string;
@@ -44,9 +48,11 @@ function MetricRow({
   );
 }
 
-export function GpuPanel({ gpu, sparkId, temperatureUnit, className }: GpuPanelProps) {
+export function GpuPanel({ gpu, cpu, sparkId, temperatureUnit, className }: GpuPanelProps) {
   const tempHistory = useMetricsHistoryTail(sparkId, "gpu.temp");
   const usageHistory = useMetricsHistoryTail(sparkId, "gpu.usage");
+  const cpuTempHistory = useMetricsHistoryTail(sparkId, "cpu.temp");
+  const cpuUsageHistory = useMetricsHistoryTail(sparkId, "cpu.usage");
 
   const temperature = gpu?.temperature ?? 0;
   const displayTemp = temperatureUnit === "fahrenheit" ? celsiusToFahrenheit(temperature) : temperature;
@@ -66,6 +72,22 @@ export function GpuPanel({ gpu, sparkId, temperatureUnit, className }: GpuPanelP
         ? "var(--color-warning)"
         : "var(--color-accent)";
 
+  const cpuUsage = cpu?.usage ?? 0;
+
+  // On the GB10 superchip, CPU (Grace) and GPU (Blackwell) share one package —
+  // this often tracks GPU load rather than CPU load (see incident log). Bands
+  // match RamPanel's CPU thresholds, not the GPU ones above.
+  const cpuTemperature = cpu?.temperature ?? 0;
+  const cpuDisplayTemp =
+    temperatureUnit === "fahrenheit" ? celsiusToFahrenheit(cpuTemperature) : cpuTemperature;
+  const cpuTempLabel = temperatureUnit === "fahrenheit" ? `${cpuDisplayTemp}°F` : `${cpuDisplayTemp}°C`;
+  const cpuTempColor =
+    cpuTemperature > 95
+      ? "var(--color-danger)"
+      : cpuTemperature > 85
+        ? "var(--color-warning)"
+        : "var(--color-accent)";
+
   return (
     <Panel
       title="GPU"
@@ -75,17 +97,33 @@ export function GpuPanel({ gpu, sparkId, temperatureUnit, className }: GpuPanelP
       bodyClassName="space-y-3"
     >
       <MetricRow
-        label="Usage"
+        label="GPU Usage"
         color="var(--color-accent)"
         spark={<Sparkline data={usageHistory} color="var(--color-accent)" width={180} />}
         value={<span className="text-text-strong">{usage}%</span>}
       />
       <MetricRow
-        label="Temperature"
+        label="GPU Temp"
         color={tempColor}
         spark={<Sparkline data={tempHistory} color={tempColor} width={180} />}
         value={<span className="text-text-strong">{tempLabel}</span>}
       />
+      {cpu && (
+        <MetricRow
+          label="CPU Usage"
+          color="var(--color-accent)"
+          spark={<Sparkline data={cpuUsageHistory} color="var(--color-accent)" width={180} />}
+          value={<span className="text-text-strong">{cpuUsage}%</span>}
+        />
+      )}
+      {cpu && cpuTemperature > 0 && (
+        <MetricRow
+          label="CPU Temp"
+          color={cpuTempColor}
+          spark={<Sparkline data={cpuTempHistory} color={cpuTempColor} width={180} />}
+          value={<span className="text-text-strong">{cpuTempLabel}</span>}
+        />
+      )}
       <div className="flex justify-between text-sm">
         <span className="text-muted">GPU Power</span>
         <span className="font-tabular text-sm text-text">

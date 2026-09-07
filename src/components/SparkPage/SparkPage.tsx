@@ -265,6 +265,7 @@ export function SparkPage({ spark, temperatureUnit, onEdit }: SparkPageProps) {
               <>
                 <GpuPanel
                   gpu={metrics.gpu}
+                  cpu={metrics.cpu}
                   sparkId={spark.id}
                   temperatureUnit={temperatureUnit}
                   className={tailscaleOn ? "md:row-span-3" : "md:row-span-2"}

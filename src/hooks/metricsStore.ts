@@ -98,8 +98,10 @@ export function ingestSnapshots(sparks: SparkSnapshot[]): void {
       if (Array.isArray(m.cpu.loadAvg) && m.cpu.loadAvg.length > 0) {
         pushHistory(`${s.id}:cpu.loadavg1`, m.cpu.loadAvg[0]);
       }
-      // CPU temp is only shown for dedicated GPU hosts (not DGX Sparks).
-      if (s.kind === "host" && m.cpu.temperature > 0) {
+      // Recorded for every kind — Sparks show it in the GPU panel (see
+      // GpuPanel.tsx: the Grace+Blackwell package shares one thermal path,
+      // so CPU temp tracks GPU load there too), hosts show it in RamPanel.
+      if (m.cpu.temperature > 0) {
         pushHistory(`${s.id}:cpu.temp`, m.cpu.temperature);
       }
     }
