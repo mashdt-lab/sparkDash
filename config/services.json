@@ -75,6 +75,22 @@
     "switchArg": "qwen38-flash"
   },
   {
+    "id": "flashnext-a5b",
+    "name": "Qwen3.8-Flash-Next-A5B",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "vLLM (azampatti) — INT4-AutoRound, 5 routed experts (healed from 10), MTP=3, ~64-70 tok/s",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "qwen38-flash-a5b",
+    "exclusiveGroup": "sglang",
+    "actions": [
+      "api",
+      "metrics"
+    ],
+    "switchArg": "qwen38-flash-a5b"
+  },
+  {
     "id": "comfyui",
     "name": "ComfyUI",
     "category": "AI & Creative",
