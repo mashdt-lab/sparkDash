@@ -261,10 +261,14 @@ export class ComfyProbe {
   }
 
   /**
-   * Browser deep-link host — always prefer LAN IP so "Open" works from other
-   * machines. Probe traffic still uses llmProbeHost (loopback when isLocal).
+   * Browser deep-link host — prefer the Tailscale IP when set (works off the
+   * home LAN too), else LAN IP, so "Open" works from other machines. Probe
+   * traffic still uses llmProbeHost (loopback when isLocal).
    */
   openUrl() {
+    const tailscale =
+      this.spark?.tailscaleIp != null ? String(this.spark.tailscaleIp).trim() : "";
+    if (tailscale) return `http://${tailscale}:${this.port}`;
     const lan =
       this.spark?.lanIp != null ? String(this.spark.lanIp).trim() : "";
     const sshHost =

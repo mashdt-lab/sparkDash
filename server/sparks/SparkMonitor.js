@@ -406,6 +406,7 @@ export class SparkMonitor {
       online: this.online,
       uptime: this._uptimeSeconds,
       lanIp: this.spark.lanIp || "",
+      tailscaleIp: this.spark.tailscaleIp || null,
       isLocal: Boolean(this.spark.isLocal),
       disabledDevices: this.spark.disabledDevices || [],
       disabledInterfaces: this.spark.disabledInterfaces || [],

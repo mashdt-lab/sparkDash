@@ -39,8 +39,9 @@
  * favour of "Internal only", and openable/api/metrics links). A service can
  * be internal AND have a real online/offline/degraded status.
  *
- * Browser-facing openUrl is built from spark.lanIp (never 127.0.0.1/localhost),
- * matching ComfyPanel.tsx's comfyOpenUrl() convention.
+ * Browser-facing openUrl is built from spark.tailscaleIp when set, else
+ * spark.lanIp (never 127.0.0.1/localhost) — so it keeps working off the home
+ * LAN, over the tailnet — matching ComfyPanel.tsx's comfyOpenUrl() convention.
  */
 import fs from "fs";
 import http from "http";
@@ -95,6 +96,8 @@ function loadManifest() {
 }
 
 function lanHost(spark) {
+  const tailscale = spark?.tailscaleIp != null ? String(spark.tailscaleIp).trim() : "";
+  if (tailscale) return tailscale;
   const ip = spark?.lanIp != null ? String(spark.lanIp).trim() : "";
   return ip || null;
 }

@@ -26,6 +26,7 @@ const defaultConfig: Omit<SparkConfig, "id"> = {
   kind: "spark",
   lanIp: "",
   cx7Ip: "",
+  tailscaleIp: "",
   isLocal: false,
   llmPorts: [8888],
   ssh: { host: "", user: "zurih", auth: "key" },
@@ -190,6 +191,18 @@ export function AddSparkDialog({ open, onClose, onAdded, defaultLlmPort = 8888 }
               />
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-xs text-muted">Tailscale IP (optional)</label>
+            <input
+              type="text"
+              value={config.tailscaleIp || ""}
+              onChange={(e) => update({ tailscaleIp: e.target.value || null })}
+              className="w-full rounded border border-border bg-surface-elevated px-3 py-1.5 text-xs text-text outline-none focus:border-accent"
+              placeholder="100.x.x.x"
+              title="When set, Open/API/metrics links and the SSH copy command use this instead of the LAN IP, so they keep working off the home network over the tailnet."
+            />
+          </div>
 
           <div>
             <label className="mb-1 block text-xs text-muted">LLM Ports (optional, comma-separated)</label>

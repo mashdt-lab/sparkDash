@@ -175,6 +175,7 @@ export function EditSparkDialog({
         !savedConfig ||
         config.lanIp !== savedConfig.lanIp ||
         (config.cx7Ip ?? null) !== (savedConfig.cx7Ip ?? null) ||
+        (config.tailscaleIp ?? null) !== (savedConfig.tailscaleIp ?? null) ||
         config.isLocal !== savedConfig.isLocal ||
         (config.ssh?.host || config.lanIp) !== (savedConfig.ssh?.host || savedConfig.lanIp) ||
         config.ssh?.user !== savedConfig.ssh?.user ||
@@ -239,6 +240,7 @@ export function EditSparkDialog({
         kind: config.kind ?? "spark",
         lanIp: config.lanIp,
         cx7Ip: config.cx7Ip,
+        tailscaleIp: config.tailscaleIp || null,
         macAddress: config.macAddress || null,
         isLocal: config.isLocal,
         role,
@@ -351,6 +353,20 @@ export function EditSparkDialog({
                   />
                 </div>
               )}
+
+              <div>
+                <label className="mb-1 block text-xs text-muted">
+                  Tailscale IP (optional)
+                </label>
+                <input
+                  type="text"
+                  value={config.tailscaleIp || ""}
+                  onChange={(e) => update({ tailscaleIp: e.target.value || null })}
+                  className="w-full rounded border border-border bg-surface-elevated px-3 py-1.5 text-xs text-text outline-none focus:border-accent"
+                  placeholder="100.x.x.x"
+                  title="When set, Open/API/metrics links and the SSH copy command use this instead of the LAN IP, so they keep working off the home network over the tailnet."
+                />
+              </div>
 
               <div>
                 <label className="mb-1 block text-xs text-muted">

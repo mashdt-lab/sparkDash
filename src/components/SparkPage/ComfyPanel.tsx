@@ -8,15 +8,26 @@ interface ComfyPanelProps {
   comfy: ComfyMetrics | null;
   comfyPort: number;
   sparkId: string;
-  /** Spark LAN IP — preferred host for the Open ComfyUI deep link. */
+  /** Spark Tailscale IP — preferred host for the Open ComfyUI deep link (works off the home LAN). */
+  tailscaleIp?: string | null;
+  /** Spark LAN IP — fallback host for the Open ComfyUI deep link. */
   lanIp?: string | null;
   className?: string;
 }
 
-/** Browser URL for ComfyUI UI — always LAN IP when known (never dashboard origin). */
-function comfyOpenUrl(lanIp: string | null | undefined, comfyPort: number, serverOpenUrl?: string | null): string {
+/** Browser URL for ComfyUI UI — Tailscale IP, then LAN IP, when known (never dashboard origin). */
+function comfyOpenUrl(
+  tailscaleIp: string | null | undefined,
+  lanIp: string | null | undefined,
+  comfyPort: number,
+  serverOpenUrl?: string | null
+): string {
   const port =
     Number.isInteger(comfyPort) && comfyPort >= 1 && comfyPort <= 65535 ? comfyPort : 8188;
+  const tailscale = tailscaleIp != null ? String(tailscaleIp).trim() : "";
+  if (tailscale) {
+    return `http://${tailscale}:${port}`;
+  }
   const lan = lanIp != null ? String(lanIp).trim() : "";
   if (lan && lan !== "127.0.0.1" && lan !== "localhost") {
     return `http://${lan}:${port}`;
@@ -214,6 +225,7 @@ export function ComfyPanel({
   comfy,
   comfyPort,
   sparkId,
+  tailscaleIp,
   lanIp,
   className = "",
 }: ComfyPanelProps) {
@@ -225,7 +237,7 @@ export function ComfyPanel({
   const lastJob = comfy?.lastJob ?? null;
   const modelsInstalled = comfy?.modelsInstalled ?? null;
   const etaLabel = formatEtaMs(comfy?.queueEtaMs ?? null);
-  const openUrl = comfyOpenUrl(lanIp, comfyPort, comfy?.openUrl ?? null);
+  const openUrl = comfyOpenUrl(tailscaleIp, lanIp, comfyPort, comfy?.openUrl ?? null);
 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);

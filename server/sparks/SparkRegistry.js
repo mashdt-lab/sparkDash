@@ -485,6 +485,8 @@ export class SparkRegistry {
       kind: config.kind === "host" ? "host" : "spark",
       lanIp: config.lanIp || "",
       cx7Ip: config.cx7Ip || null,
+      /** Optional Tailscale IP — preferred over lanIp for browser deep-links. */
+      tailscaleIp: config.tailscaleIp || null,
       /** Optional user override for Wake-on-LAN. Empty → use detectedMacAddress. */
       macAddress: config.macAddress || null,
       /** Last MAC seen on enP7s7 (auto; not set via public PATCH). */

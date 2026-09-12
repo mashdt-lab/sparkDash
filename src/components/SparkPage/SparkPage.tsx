@@ -318,6 +318,7 @@ export function SparkPage({ spark, temperatureUnit, onEdit }: SparkPageProps) {
                 comfy={metrics.comfy ?? null}
                 comfyPort={spark.comfyPort ?? 8188}
                 sparkId={spark.id}
+                tailscaleIp={spark.tailscaleIp}
                 lanIp={spark.lanIp}
                 className={primarySideBySide ? undefined : "md:col-span-2"}
               />

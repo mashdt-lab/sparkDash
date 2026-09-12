@@ -12,6 +12,12 @@ export interface SparkConfig {
   lanIp: string;
   cx7Ip?: string | null;
   /**
+   * Optional Tailscale IP. When set, browser deep-links (Open ComfyUI, LLM
+   * API/metrics links, the SSH copy command) prefer it over `lanIp` so they
+   * keep working off the home LAN, over the tailnet.
+   */
+  tailscaleIp?: string | null;
+  /**
    * Optional Wake-on-LAN MAC override. When empty, the server uses
    * `detectedMacAddress` from the enP7s7 interface.
    */
@@ -519,6 +525,8 @@ export interface SparkSnapshot {
   uptime: number | null;
   /** LAN IP for browser deep-links (e.g. Open ComfyUI). */
   lanIp?: string;
+  /** Tailscale IP — preferred over `lanIp` for browser deep-links when set. */
+  tailscaleIp?: string | null;
   isLocal?: boolean;
   disabledDevices: string[];
   disabledInterfaces: string[];
