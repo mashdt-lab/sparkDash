@@ -19,8 +19,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { SparkSnapshot } from "../api/types";
-import { PlusIcon, GridIcon, LaunchIcon } from "./ui/icons";
-import { OVERVIEW_ID, SERVICES_ID } from "../constants";
+import { PlusIcon, GridIcon, LaunchIcon, ActivityIcon } from "./ui/icons";
+import { OVERVIEW_ID, SERVICES_ID, GPU_COMPARE_ID } from "../constants";
 
 interface SparkTabsProps {
   sparks: SparkSnapshot[];
@@ -327,6 +327,7 @@ export function SparkTabs({
       <nav className="pill-nav" aria-label="Sparks">
         <OverviewTab isActive={activeId === OVERVIEW_ID} onSelect={onSelect} />
         <ServicesTab isActive={activeId === SERVICES_ID} onSelect={onSelect} />
+        <GpuCompareTab isActive={activeId === GPU_COMPARE_ID} onSelect={onSelect} />
         {sparks.map((spark) => (
           <div key={spark.id} className="shrink-0">
             <TabChrome
@@ -353,6 +354,7 @@ export function SparkTabs({
       <nav className="pill-nav" aria-label="Sparks">
         <OverviewTab isActive={activeId === OVERVIEW_ID} onSelect={onSelect} />
         <ServicesTab isActive={activeId === SERVICES_ID} onSelect={onSelect} />
+        <GpuCompareTab isActive={activeId === GPU_COMPARE_ID} onSelect={onSelect} />
         <SortableContext items={items} strategy={horizontalListSortingStrategy}>
           {ordered.map((spark) => (
             <SortableTab
@@ -437,6 +439,27 @@ function ServicesTab({
   );
 }
 
+function GpuCompareTab({
+  isActive,
+  onSelect,
+}: {
+  isActive: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="shrink-0">
+      <button
+        type="button"
+        onClick={() => onSelect(GPU_COMPARE_ID)}
+        className={`pill-item ${isActive ? "is-active" : ""}`}
+      >
+        <ActivityIcon className="h-3.5 w-3.5" />
+        GPU Dashboard
+      </button>
+    </div>
+  );
+}
+
 /* ─── Mobile dropdown menu ────────────────────────────── */
 
 function MobileSparkMenu({
@@ -516,6 +539,15 @@ function MobileSparkMenu({
       >
         <LaunchIcon className="h-3.5 w-3.5" />
         Services
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className={`mobile-menu-item ${activeId === GPU_COMPARE_ID ? "is-active" : ""}`}
+        onClick={() => handleItemClick(GPU_COMPARE_ID)}
+      >
+        <ActivityIcon className="h-3.5 w-3.5" />
+        GPU Dashboard
       </button>
       {sparks.map((spark) => (
         <button

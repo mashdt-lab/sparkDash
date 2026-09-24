@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from "react";
-import { OVERVIEW_ID, SERVICES_ID } from "../constants";
+import { OVERVIEW_ID, SERVICES_ID, GPU_COMPARE_ID } from "../constants";
 
 export type RouteMode = "app" | "showcase";
 
@@ -61,7 +61,9 @@ export function useRoute(
     if (path.startsWith("/showcase/")) return;
 
     const match = path.match(/^\/spark\/([^/]+)/);
-    if (match) {
+    if (path === "/gpu-dashboard") {
+      setActiveId(GPU_COMPARE_ID);
+    } else if (match) {
       setActiveId(match[1]);
     } else if (path === "/services") {
       setActiveId(SERVICES_ID);
@@ -79,6 +81,10 @@ export function useRoute(
         setActiveId(SERVICES_ID);
         return;
       }
+      if (path === "/gpu-dashboard") {
+        setActiveId(GPU_COMPARE_ID);
+        return;
+      }
       const match = path.match(/^\/spark\/([^/]+)/);
       setActiveId(match ? match[1] : OVERVIEW_ID);
     };
@@ -92,9 +98,11 @@ export function useRoute(
       const url =
         id === SERVICES_ID
           ? "/services"
-          : id && id !== OVERVIEW_ID
-            ? `/spark/${encodeURIComponent(id)}`
-            : "/";
+          : id === GPU_COMPARE_ID
+            ? "/gpu-dashboard"
+            : id && id !== OVERVIEW_ID
+              ? `/spark/${encodeURIComponent(id)}`
+              : "/";
       window.history.pushState(null, "", url);
       setActiveId(id);
     },

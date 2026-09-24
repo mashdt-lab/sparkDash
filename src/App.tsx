@@ -3,6 +3,7 @@ import { useSnapshot } from "./hooks/useSnapshot";
 import { useAppRoute, useRoute } from "./hooks/useRoute";
 import { fetchSparks, reorderSparks, fetchSettings } from "./api/client";
 import { SparkTabs } from "./components/SparkTabs";
+import { GpuComparePage } from "./components/GpuComparePage/GpuComparePage";
 import { AddSparkDialog } from "./components/AddSparkDialog";
 import { EditSparkDialog } from "./components/EditSparkDialog";
 import { SparkPage } from "./components/SparkPage/SparkPage";
@@ -13,7 +14,7 @@ import { ShowcasePage } from "./components/ShowcasePage/ShowcasePage";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { GearIcon, BoltIcon } from "./components/ui/icons";
-import { OVERVIEW_ID, SERVICES_ID } from "./constants";
+import { OVERVIEW_ID, SERVICES_ID, GPU_COMPARE_ID } from "./constants";
 import type { Settings, SparkSnapshot } from "./api/types";
 
 function placeholderSnapshot(
@@ -141,7 +142,8 @@ function DashboardApp() {
 
   const isOverview = activeId === OVERVIEW_ID;
   const isServices = activeId === SERVICES_ID;
-  const displayActive = isOverview
+  const isGpuCompare = activeId === GPU_COMPARE_ID;
+  const displayActive = isOverview || isGpuCompare
     ? null
     : displaySparks.find((s) => s.id === activeId) || displaySparks[0] || activeSpark || null;
 
@@ -214,10 +216,15 @@ function DashboardApp() {
           );
         })
       );
-      if (configs.length && activeId !== OVERVIEW_ID && !configs.some((c) => c.id === activeId)) {
+      if (
+        configs.length &&
+        activeId !== OVERVIEW_ID &&
+        activeId !== GPU_COMPARE_ID &&
+        !configs.some((c) => c.id === activeId)
+      ) {
         setActiveId(configs[0].id);
       }
-      if (configs.length === 0 && activeId !== OVERVIEW_ID) setActiveId(null);
+      if (configs.length === 0 && activeId !== OVERVIEW_ID && activeId !== GPU_COMPARE_ID) setActiveId(null);
     } catch (err) {
       console.error("Failed to refresh sparks:", err);
     }
@@ -271,6 +278,8 @@ function DashboardApp() {
         <main>
           {isServices ? (
             <ServicesPage spark={displaySparks[0] ?? null} />
+          ) : isGpuCompare ? (
+            <GpuComparePage />
           ) : isOverview ? (
             <OverviewPage
               sparks={displaySparks}

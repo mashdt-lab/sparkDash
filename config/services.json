@@ -79,7 +79,7 @@
     "name": "Qwen3.8-Flash-Next-A5B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "vLLM (azampatti) — INT4-AutoRound, 5 routed experts (healed from 10), MTP=3, ~64-70 tok/s",
+    "description": "vLLM (azampatti) \u2014 INT4-AutoRound, 5 routed experts (healed from 10), MTP=3, ~64-70 tok/s",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "qwen38-flash-a5b",
@@ -161,5 +161,16 @@
     "port": 5555,
     "description": "This dashboard",
     "probe": "self"
+  },
+  {
+    "id": "spark-dashboard",
+    "name": "Spark Dashboard (compare)",
+    "category": "Monitoring",
+    "port": 3500,
+    "description": "Third-party GPU/vLLM monitoring dashboard (niklasfrick/spark-dashboard) - side-by-side comparison against this sparkDash",
+    "probe": "http-get",
+    "openable": true,
+    "controllable": false,
+    "container": "spark-dashboard"
   }
 ]
