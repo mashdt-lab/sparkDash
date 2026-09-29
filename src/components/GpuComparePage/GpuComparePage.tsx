@@ -3,7 +3,9 @@
  * vLLM monitor in an iframe, for side-by-side comparison against sparkDash's
  * own panels. Fixed tab, same family as OverviewPage/ServicesPage.
  */
-const GPU_DASHBOARD_URL = "http://192.168.88.80:3500";
+// Same host the browser used to reach sparkDash (LAN or Tailscale), so the
+// embed keeps working when the Spark's IP or subnet changes.
+const GPU_DASHBOARD_URL = `${window.location.protocol}//${window.location.hostname}:3500`;
 
 export function GpuComparePage() {
   return (
