@@ -332,6 +332,16 @@ export interface LlmMetrics {
   error: string | null;
 }
 
+export interface LlmTokenTotalsResponse {
+  sparkId: string;
+  timeZone: string;
+  startedAt: string | null;
+  day: number;
+  month: number;
+  year: number;
+  allTime: number;
+}
+
 /** One UTC day of busy tok/s rollups (null avg = no busy samples). */
 export interface LlmDailyDay {
   date: string;

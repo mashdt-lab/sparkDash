@@ -5,6 +5,7 @@ import type {
   HermesUpdatesResponse,
   LlmMetrics,
   LlmDailyResponse,
+  LlmTokenTotalsResponse,
   GpuDailyResponse,
   ServicesResponse,
   Settings,
@@ -57,6 +58,10 @@ export function fetchLlmDaily(
 ): Promise<LlmDailyResponse> {
   const q = new URLSearchParams({ port: String(port), days: String(days) });
   return apiFetch(`/api/sparks/${encodeURIComponent(id)}/llm/daily?${q.toString()}`);
+}
+
+export function fetchLlmTokenTotals(id: string): Promise<LlmTokenTotalsResponse> {
+  return apiFetch(`/api/sparks/${encodeURIComponent(id)}/llm/token-totals`);
 }
 
 export function fetchGpuDaily(id: string, days = 14): Promise<GpuDailyResponse> {

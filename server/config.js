@@ -18,6 +18,9 @@ const SECRETS_KEY_PATH =
 /** Daily LLM tok/s rollups (gitignored). */
 const LLM_DAILY_JSON_PATH =
   process.env.LLM_DAILY_JSON_PATH || path.join(ROOT, "config", "llm-daily.json");
+/** Persisted generated-token odometer. */
+const LLM_TOKEN_TOTALS_PATH =
+  process.env.LLM_TOKEN_TOTALS_PATH || path.join(ROOT, "config", "llm-token-totals.json");
 /** Daily GPU temp/power rollups (gitignored). */
 const GPU_DAILY_JSON_PATH =
   process.env.GPU_DAILY_JSON_PATH || path.join(ROOT, "config", "gpu-daily.json");
@@ -103,6 +106,7 @@ export {
   SPARKS_SECRETS_PATH,
   SECRETS_KEY_PATH,
   LLM_DAILY_JSON_PATH,
+  LLM_TOKEN_TOTALS_PATH,
   GPU_DAILY_JSON_PATH,
   SERVICES_JSON_PATH,
   SERVICES_PROBE_TIMEOUT_MS,

@@ -20,6 +20,7 @@ import {
 import { showcaseManager } from "./collectors/ShowcaseManager.js";
 import { llmProbeHost } from "./collectors/llmHost.js";
 import { llmDaily } from "./collectors/LlmDaily.js";
+import { llmTokenTotals } from "./collectors/LlmTokenTotals.js";
 import { gpuDaily } from "./collectors/GpuDaily.js";
 import { getServicesSnapshot, performServiceAction } from "./collectors/ServicesProbe.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
@@ -808,6 +809,12 @@ app.get("/api/sparks/:id/llm/daily", (req, res) => {
   let days = req.query.days != null ? Number(req.query.days) : 14;
   if (!Number.isFinite(days)) days = 14;
   res.json(llmDaily.getSeries(spark.id, port, { days }));
+});
+
+app.get("/api/sparks/:id/llm/token-totals", (req, res) => {
+  const spark = registry.getSpark(req.params.id);
+  if (!spark) return res.status(404).json({ error: "Spark not found" });
+  res.json(llmTokenTotals.getTotals(spark.id));
 });
 
 /**

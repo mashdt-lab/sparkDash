@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import type { SparkSnapshot } from "../../api/types";
-import { resolveSparkRole } from "../../api/sparkRole";
+import type { LlmTokenTotalsResponse } from "../../api/types";
+import { fetchLlmTokenTotals } from "../../api/client";
+import { isLlmMonitoringEnabled, resolveSparkRole } from "../../api/sparkRole";
 import { SparkActions } from "./SparkActions";
 import { Sparkline } from "../ui/Sparkline";
 import { useMetricsHistoryTail } from "../../hooks/metricsStore";
@@ -22,6 +25,18 @@ function formatUptime(seconds: number): string {
 }
 
 export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
+  const [tokenPeriod, setTokenPeriod] = useState<"day" | "month" | "year" | "allTime">("allTime");
+  const [tokenTotals, setTokenTotals] = useState<LlmTokenTotalsResponse | null>(null);
+  useEffect(() => {
+    let active = true;
+    const load = () => fetchLlmTokenTotals(spark.id)
+      .then((totals) => { if (active) setTokenTotals(totals); })
+      .catch(() => { if (active) setTokenTotals(null); });
+    setTokenTotals(null);
+    load();
+    const timer = setInterval(load, 10_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [spark.id]);
   const { hardware } = spark;
   const online = spark.online;
   const hermes = spark.hermes;
@@ -147,6 +162,31 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
           <span className="font-tabular text-xs font-semibold">
             {cpu.loadAvg.map((n) => n.toFixed(2)).join(" · ")}
           </span>
+        </div>
+      )}
+
+      {isLlmMonitoringEnabled(spark) && (
+        <div className="flex shrink-0 flex-col gap-1 rounded bg-accent/10 px-2.5 py-1.5 text-accent"
+          title={tokenTotals?.startedAt
+            ? `Generated output tokens observed since ${new Date(tokenTotals.startedAt).toLocaleString()}. Calendar periods use ${tokenTotals.timeZone}.`
+            : "Generated output token tracking starts with the first LLM reading."}>
+          <label htmlFor={`token-period-${spark.id}`} className="text-[9px] font-medium uppercase tracking-wide opacity-75">
+            Generated tokens
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="font-tabular text-sm font-semibold" aria-live="polite">
+              {tokenTotals ? new Intl.NumberFormat().format(tokenTotals[tokenPeriod]) : "—"}
+            </span>
+            <select id={`token-period-${spark.id}`} value={tokenPeriod}
+              onChange={(event) => setTokenPeriod(event.target.value as typeof tokenPeriod)}
+              aria-label="Generated token period"
+              className="rounded border border-border bg-surface px-1 py-0.5 text-[10px] text-text">
+              <option value="day">Day</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+              <option value="allTime">All time</option>
+            </select>
+          </div>
         </div>
       )}
 
