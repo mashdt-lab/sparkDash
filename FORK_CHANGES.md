@@ -1,5 +1,17 @@
 # Fork changes
 
+> **2026-10-17 — rebased onto upstream 2.50.0.** Upstream rewrote the shell (sidebar,
+> unit page 2.0), so the fork was re-ported rather than merged. Kept: Services page (sections 5-8;
+> sidebar + mobile Stats sheet + command palette, `/services`), GPU Dashboard embed
+> (`/gpu-dashboard`), load average (now a row in upstream's CpuPanel, local units only;
+> upstream's remote CPU command is left untouched), driver version for kind "spark" (section 1),
+> configured `tailscaleIp` preferred for ComfyUI deep-links. Dropped as superseded by
+> upstream: CPU temp in the GPU panel (upstream CpuPanel), daily peak GPU chart (section 4, now
+> upstream Temps page + metrics history), header token odometer (now upstream Token totals
+> page; the old `config/llm-token-totals.json` was moved to `llm-token-totals.fork-1.8.json`
+> because upstream's ledger uses the same path). Deploy needs `BIND_HOST=0.0.0.0` in `.env`
+> (upstream now defaults to loopback-only).
+
 This repository is a fork of [MiaAI-Lab/sparkDash](https://github.com/MiaAI-Lab/sparkDash)
 (all credit for the original project to Mia'a AI Lab — this file only documents what's
 different here). It was forked at upstream commit `88aefcc` (Release 1.8.2 — "EXL3 live

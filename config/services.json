@@ -15,7 +15,7 @@
     "name": "Muse-Glimmer",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "SGLang \u2014 Muse-Glimmer NVFP4 VLM (chat), ATEM protocol",
+    "description": "SGLang — Muse-Glimmer NVFP4 VLM (chat), ATEM protocol",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "muse-glimmer-sglang",
@@ -31,7 +31,7 @@
     "name": "Qwen3.8-27B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "SGLang \u2014 hybrid GDN, 262K ctx, DSpark speculative decoding",
+    "description": "SGLang — hybrid GDN, 262K ctx, DSpark speculative decoding",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "qwen3.8-27b-sglang",
@@ -47,7 +47,7 @@
     "name": "Qwen3-Coder-30B-A3B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "SGLang \u2014 MoE coding model, 3.3B active, 256K context",
+    "description": "SGLang — MoE coding model, 3.3B active, 256K context",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "qwen3-coder-30b-a3b-sglang",
@@ -59,27 +59,11 @@
     "switchArg": "qwen3-coder"
   },
   {
-    "id": "flashnext",
-    "name": "Qwen3.8-Flash-Next",
-    "category": "AI & Creative",
-    "port": 8888,
-    "description": "vLLM (blazux) \u2014 NVFP4 + fp8 hybrid, PLE mmap, MTP=2, prefix cache, deterministic",
-    "probe": "docker-container-llm",
-    "controllable": true,
-    "container": "qwen38-flash",
-    "exclusiveGroup": "sglang",
-    "actions": [
-      "api",
-      "metrics"
-    ],
-    "switchArg": "qwen38-flash"
-  },
-  {
     "id": "flashnext-a5b",
     "name": "Qwen3.8-Flash-Next-A5B",
     "category": "AI & Creative",
     "port": 8888,
-    "description": "vLLM (azampatti) \u2014 INT4-AutoRound, 5 routed experts (healed from 10), MTP=3, ~64-70 tok/s",
+    "description": "vLLM (azampatti) — INT4-AutoRound, 5 routed experts (healed from 10), MTP=3, ~64-70 tok/s",
     "probe": "docker-container-llm",
     "controllable": true,
     "container": "qwen38-flash-a5b",
@@ -89,6 +73,38 @@
       "metrics"
     ],
     "switchArg": "qwen38-flash-a5b"
+  },
+  {
+    "id": "flashnext-tf",
+    "name": "Qwen3.8-Flash-Next-TF",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "TensorFold v0.6.1 (MiaAI-Lab) — MLX 4-bit + MTP drafts, int8 KV 4×262k, image + video input",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "qwen38-flash-next-tf",
+    "exclusiveGroup": "sglang",
+    "actions": [
+      "api",
+      "metrics"
+    ],
+    "switchArg": "qwen38-flash-tf"
+  },
+  {
+    "id": "flashnext-velo",
+    "name": "Qwen3.8-Flash-Next-Velo",
+    "category": "AI & Creative",
+    "port": 8888,
+    "description": "veloGB10 v0.7.1 (sf-stav) — native Rust+CUDA, EXL3 3.05bpw, MTP, 262k ctx, max-batch 1, image input",
+    "probe": "docker-container-llm",
+    "controllable": true,
+    "container": "velogb10-flash",
+    "exclusiveGroup": "sglang",
+    "actions": [
+      "api",
+      "metrics"
+    ],
+    "switchArg": "qwen38-flash-velo"
   },
   {
     "id": "comfyui",

@@ -14,30 +14,147 @@ const DEFAULTS = Object.freeze({
   pollIntervalMs: 2000,
   defaultLlmPort: 8888,
   autoHideOffline: false,
+  /** Hide worker-role Sparks from Overview and the tab bar. */
+  hideWorkers: false,
   temperatureUnit: "celsius",
   /** Persist prompts / HTTP traces / GPU samples on decode benchmark runs. */
   benchDebugTraces: false,
   /** Layout density — compact (default) or comfortable. */
   density: "compact",
+  /** Overview Fleet Energy card. On by default. */
+  showFleetEnergy: true,
+  /** Overview active fleet exceptions strip. Off by default. */
+  showFleetExceptions: false,
+  /** Overview search + status filter row. Off by default. */
+  showOverviewSearch: false,
+  /** Overview LLM token totals card (cumulative tokens per model). On by default. */
+  showLlmTokenTotals: true,
+  /** Overview KPI tiles (Fleet decode, Fleet power, Memory in use, Tokens in last 24 hours) and the Recent activity card. On by default. */
+  showKpiDecode: true,
+  showKpiPower: true,
+  showKpiMemory: true,
+  showKpiTokens: true,
+  showActivityFeed: true,
+  /**
+   * Benchmark dialogs offer the share-card format. On by default: the extra
+   * control is one caret next to a button that already copies, and anyone who
+   * does not want it can turn it off here (see the README's settings table).
+   */
+  benchShareImage: true,
+  /**
+   * Time zone for the Tokens, Energy and Activity charts (hour and day boundaries,
+   * labels). "" follows each browser; otherwise an IANA name such as "Europe/Paris".
+   */
+  timeZone: "",
+  /** Electricity price per kWh, used to show estimated cost on the Fleet energy page. null = hide cost. */
+  energyPricePerKwh: null,
+  /** Currency symbol shown next to the estimated cost. */
+  energyCurrency: "$",
+  /**
+   * VRAM bars on the Overview cards and the GPU panel split memory into LLM
+   * engine / system / other / free and judge severity by absolute headroom.
+   * On by default; off restores the single percentage-coloured bar. The UI
+   * falls back to the same value before settings load — keep the two in step.
+   */
+  showVramBreakdown: true,
+  /**
+   * Serve GET /metrics in Prometheus text format for an external scraper.
+   * Off by default: when off the path answers 404.
+   */
+  prometheusExport: false,
+  /**
+   * Let the Intel (xe) probe read root-only debugfs VRAM through `sudo -n`.
+   * Off by default: without it VRAM falls back to the PCI BAR size and no sudo runs.
+   */
+  intelVramSudo: false,
+  /** VulnHunter scans, installs and harness-command changes (they run an agent on a unit). Opt-in, off by default. */
+  vulnhuntEnabled: false,
+  /** REA (Tools): install, uploads and analysis runs on a unit. Opt-in, off by default. */
+  reaEnabled: false,
+  /**
+   * Keep 48 h of 1-minute and 30 days of 15-minute history per unit (GPU, memory
+   * headroom, CPU, RAM, network, LLM tok/s and KV) for the unit page. Off by
+   * default: nothing is recorded and config/metrics-history.json is never written.
+   * The GPU chart (8 h) and Temps (7 d) histories are separate and always on.
+   */
+  metricsHistory: false,
+
+  /**
+   * Alert notifications (Settings → Alerts). Off by default: while off nothing
+   * is evaluated or sent, and the alert config / test routes refuse.
+   */
+  alertsEnabled: false,
 });
+
+const POLL_INTERVAL_MIN_MS = 500;
+const POLL_INTERVAL_MAX_MS = 60_000;
+
+/** "" (follow the browser) or an IANA zone name this runtime knows. */
+export function isValidTimeZone(value) {
+  if (typeof value !== "string") return false;
+  const name = value.trim();
+  if (!name || name.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Keep only known setting keys. */
+function _whitelist(obj) {
+  const out = {};
+  if (!obj || typeof obj !== "object") return out;
+  for (const k of Object.keys(DEFAULTS)) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k];
+  }
+  return out;
+}
 
 /** @type {typeof DEFAULTS} */
 let _settings = { ...DEFAULTS };
 
 function _clampSettings(settings) {
   const s = { ...settings };
-  // Clamp poll interval to 1000ms minimum
-  if (typeof s.pollIntervalMs !== "number" || s.pollIntervalMs < 1000) {
-    s.pollIntervalMs = 1000;
+  // Clamp poll interval to a sane range (a huge value would overflow setInterval to 1 ms).
+  if (typeof s.pollIntervalMs !== "number" || !Number.isFinite(s.pollIntervalMs)) {
+    s.pollIntervalMs = DEFAULTS.pollIntervalMs;
   }
+  s.pollIntervalMs = Math.min(POLL_INTERVAL_MAX_MS, Math.max(POLL_INTERVAL_MIN_MS, Math.round(s.pollIntervalMs)));
   // Clamp LLM port to 1–65535
   if (typeof s.defaultLlmPort !== "number" || s.defaultLlmPort < 1 || s.defaultLlmPort > 65535) {
     s.defaultLlmPort = DEFAULTS.defaultLlmPort;
   }
   // Ensure autoHideOffline is boolean
   s.autoHideOffline = Boolean(s.autoHideOffline);
+  s.hideWorkers = Boolean(s.hideWorkers);
   // Ensure benchDebugTraces is boolean
   s.benchDebugTraces = Boolean(s.benchDebugTraces);
+  s.showFleetEnergy = Boolean(s.showFleetEnergy);
+  s.showFleetExceptions = Boolean(s.showFleetExceptions);
+  s.showOverviewSearch = Boolean(s.showOverviewSearch);
+  s.showLlmTokenTotals = Boolean(s.showLlmTokenTotals);
+  s.showKpiDecode = Boolean(s.showKpiDecode);
+  s.showKpiPower = Boolean(s.showKpiPower);
+  s.showKpiMemory = Boolean(s.showKpiMemory);
+  s.showKpiTokens = Boolean(s.showKpiTokens);
+  s.showActivityFeed = Boolean(s.showActivityFeed);
+  // Electricity price: a non-negative finite number, otherwise "not set".
+  const price = s.energyPricePerKwh == null || s.energyPricePerKwh === "" ? null : Number(s.energyPricePerKwh);
+  s.energyPricePerKwh = Number.isFinite(price) && price >= 0 && price <= 100 ? price : null;
+  s.energyCurrency =
+    typeof s.energyCurrency === "string" && s.energyCurrency.trim() && s.energyCurrency.trim().length <= 4
+      ? s.energyCurrency.trim()
+      : DEFAULTS.energyCurrency;
+  s.timeZone = isValidTimeZone(s.timeZone) ? String(s.timeZone).trim() : "";
+  s.showVramBreakdown = Boolean(s.showVramBreakdown);
+  s.prometheusExport = Boolean(s.prometheusExport);
+  s.intelVramSudo = Boolean(s.intelVramSudo);
+  s.vulnhuntEnabled = Boolean(s.vulnhuntEnabled);
+  s.reaEnabled = Boolean(s.reaEnabled);
+  s.metricsHistory = Boolean(s.metricsHistory);
+  s.alertsEnabled = Boolean(s.alertsEnabled);
   // Ensure temperatureUnit is valid
   if (s.temperatureUnit !== "celsius" && s.temperatureUnit !== "fahrenheit") {
     s.temperatureUnit = DEFAULTS.temperatureUnit;
@@ -54,7 +171,7 @@ export function loadSettings() {
   try {
     const raw = fs.readFileSync(SETTINGS_PATH, "utf-8");
     const parsed = JSON.parse(raw);
-    _settings = _clampSettings({ ...DEFAULTS, ...parsed });
+    _settings = _clampSettings({ ...DEFAULTS, ..._whitelist(parsed) });
   } catch (err) {
     if (err.code === "ENOENT") {
       _settings = { ...DEFAULTS };
@@ -89,7 +206,7 @@ export function getSettings() {
  * @returns {typeof DEFAULTS}
  */
 export function updateSettings(patch) {
-  const merged = _clampSettings({ ..._settings, ...patch });
+  const merged = _clampSettings({ ..._settings, ..._whitelist(patch) });
   _settings = merged;
   saveSettings();
   return { ..._settings };

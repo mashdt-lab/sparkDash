@@ -1,8 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isValidTimeZone, listTimeZones } from "../shared/timeZone";
 import { fetchSettings, updateSettings } from "../api/client";
+import { clearToken, getToken, onTokenChange, requestTokenPrompt } from "../api/authToken";
 import type { Settings } from "../api/types";
 import { useModalPresence } from "../hooks/useModalPresence";
+import { useOverlayClose } from "../hooks/useOverlayClose";
 import packageJson from "../../package.json";
+import { XIcon } from "./ui/icons";
+import { SettingRow, ToggleRow } from "./SettingRows";
+import { AlertsDialog } from "./AlertsDialog";
+import { BrowserAlertsSettings } from "./BrowserAlertsSettings";
+import "../styles/dialogs.css";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -20,6 +28,40 @@ function useEscape(onClose: () => void) {
   }, [onClose]);
 }
 
+type ThemeId = "white" | "light" | "dark" | "oled";
+
+const THEME_STORAGE_KEY = "sparkdash-theme";
+
+/** Real swatches: background, text and accent mirror each theme's tokens. */
+const THEME_CHOICES: Array<{ id: ThemeId; label: string; bg: string; fg: string; accent: string }> = [
+  { id: "white", label: "White", bg: "#ffffff", fg: "#14181e", accent: "#e8a21c" },
+  { id: "light", label: "Light", bg: "#eaedf1", fg: "#12161c", accent: "#e8a21c" },
+  { id: "dark", label: "Dark", bg: "#12151a", fg: "#e9ecf0", accent: "#f0b03a" },
+  { id: "oled", label: "OLED", bg: "#000000", fg: "#e9ecf0", accent: "#f0b03a" },
+];
+
+function readTheme(): ThemeId {
+  try {
+    const attr = document.documentElement.getAttribute("data-theme");
+    const stored = attr || localStorage.getItem(THEME_STORAGE_KEY);
+    if (THEME_CHOICES.some((t) => t.id === stored)) return stored as ThemeId;
+  } catch {
+    /* storage can throw in private windows */
+  }
+  return "dark";
+}
+
+/** Apply a theme the same way ThemeSwitch does, then tell it to resync. */
+function applyTheme(theme: ThemeId) {
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new CustomEvent("sparkdash:set-theme", { detail: theme }));
+}
+
 const POLL_PRESETS = [
   { label: "1s", value: 1000 },
   { label: "2s", value: 2000 },
@@ -33,16 +75,27 @@ export function SettingsDialog({ open, onClose, onSaved }: SettingsDialogProps) 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [theme, setTheme] = useState<ThemeId>(readTheme);
+  const [tokenSet, setTokenSet] = useState(() => getToken() !== "");
+  const [showAlerts, setShowAlerts] = useState(false);
 
-  useEscape(onClose);
+  // While the Alerts dialog is open on top, Escape belongs to it alone.
+  const closeOnEscape = useCallback(() => {
+    if (!showAlerts) onClose();
+  }, [showAlerts, onClose]);
+  useEscape(closeOnEscape);
+
+  useEffect(() => onTokenChange((token) => setTokenSet(token !== "")), []);
 
   useEffect(() => {
     if (!open) {
+      setShowAlerts(false);
       setSettings(null);
       setError(null);
       setDirty(false);
       return;
     }
+    setTheme(readTheme());
     let cancelled = false;
     setLoading(true);
     fetchSettings()
@@ -61,14 +114,36 @@ export function SettingsDialog({ open, onClose, onSaved }: SettingsDialogProps) 
   }, [open]);
 
   const { mounted, visible } = useModalPresence(open);
+  const overlayClose = useOverlayClose(onClose);
+
+  const timeZones = useMemo(() => listTimeZones(), []);
+  const [tzTouched, setTzTouched] = useState(false);
+  const [tzFocused, setTzFocused] = useState(false);
+  const tzInput = useRef<HTMLInputElement | null>(null);
+  const browserTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
+
+  // Say a zone is unknown only once the field has been left (not while "Eur" is half typed).
+  const tzInvalid = tzTouched && !tzFocused && Boolean(settings?.timeZone) && !isValidTimeZone(settings?.timeZone);
 
   const update = (patch: Partial<Settings>) => {
     setSettings((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
   };
 
+  // The Alerts dialog saves its switch itself; mirror it here without marking
+  // Settings dirty, so a later Save does not undo it.
+  const handleAlertsSettings = (saved: Settings) => {
+    setSettings((prev) => (prev ? { ...prev, alertsEnabled: saved.alertsEnabled } : prev));
+    onSaved(saved);
+  };
+
   const handleSave = async () => {
     if (!settings) return;
+    if (settings.timeZone && !isValidTimeZone(settings.timeZone)) {
+      // The server would silently fall back to the browser's zone; say so instead.
+      setError(`"${settings.timeZone}" is not a known time zone (for example Europe/Paris), or clear the field to follow the browser.`);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -86,221 +161,385 @@ export function SettingsDialog({ open, onClose, onSaved }: SettingsDialogProps) 
 
   if (!mounted) return null;
 
+  const pickTheme = (next: ThemeId) => {
+    setTheme(next);
+    applyTheme(next);
+  };
+
   return (
     <div
-      className={`settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4${
-        visible ? " is-open" : ""
-      }`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      className={`settings-overlay${visible ? " is-open" : ""}`}
+      {...overlayClose}
     >
-      <div className="settings-panel w-full max-w-sm p-6">
-        <h2 className="mb-4 text-sm font-semibold text-text-strong">Settings</h2>
-
-        {loading && <p className="text-xs text-muted">Loading…</p>}
-
-        {settings && !loading && (
-          <div className="space-y-4">
-            {/* Poll interval */}
-            <div>
-              <label className="mb-2 block text-xs text-muted">Poll interval</label>
-              <div className="flex gap-2">
-                {POLL_PRESETS.map((preset) => (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    onClick={() => update({ pollIntervalMs: preset.value })}
-                    className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-                      settings.pollIntervalMs === preset.value
-                        ? "bg-accent text-white"
-                        : "border border-border bg-surface-elevated text-muted hover:bg-surface-hover"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Default LLM port */}
-            <div>
-              <label className="mb-1 block text-xs text-muted">Default LLM port</label>
-              <input
-                type="number"
-                min={1}
-                max={65535}
-                value={settings.defaultLlmPort}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val)) update({ defaultLlmPort: val });
-                }}
-                className="w-full rounded border border-border bg-surface-elevated px-3 py-1.5 text-xs text-text outline-none focus:border-accent"
-              />
-              <p className="mt-1 text-[10px] text-muted">
-                Pre-filled when adding a new Spark (1–65535)
-              </p>
-            </div>
-
-            {/* Auto-hide offline */}
-            <div>
-              <label className="flex items-center gap-3 text-xs text-muted">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={settings.autoHideOffline}
-                  onClick={() => update({ autoHideOffline: !settings.autoHideOffline })}
-                  className={`toggle-track relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                    settings.autoHideOffline ? "is-on" : ""
-                  }`}
-                >
-                  <span
-                    className={`toggle-dot inline-block h-4 w-4 transform rounded-full shadow transition-transform ${
-                      settings.autoHideOffline ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-                Auto-hide offline Sparks on Overview
-              </label>
-            </div>
-
-            {/* Benchmark debug traces */}
-            <div>
-              <label className="flex items-start gap-3 text-xs text-muted">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={Boolean(settings.benchDebugTraces)}
-                  onClick={() =>
-                    update({ benchDebugTraces: !settings.benchDebugTraces })
-                  }
-                  className={`toggle-track relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                    settings.benchDebugTraces ? "is-on" : ""
-                  }`}
-                >
-                  <span
-                    className={`toggle-dot inline-block h-4 w-4 transform rounded-full shadow transition-transform ${
-                      settings.benchDebugTraces ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-                <span>
-                  <span className="block text-text">Enable debug traces for Benchmark runs</span>
-                  <span className="mt-0.5 block text-[10px] leading-snug text-muted">
-                    Stores prompts, HTTP/completion IDs, content previews, and GPU
-                    samples in bench history. Off by default — larger history files.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            {/* Temperature unit */}
-            <div>
-              <label className="text-xs text-muted">Temperature unit</label>
-              <div className="mt-1.5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => update({ temperatureUnit: "celsius" })}
-                  className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-                    settings.temperatureUnit === "celsius"
-                      ? "bg-accent text-white"
-                      : "border border-border bg-surface-elevated text-muted hover:bg-surface-hover"
-                  }`}
-                >
-                  °C
-                </button>
-                <button
-                  type="button"
-                  onClick={() => update({ temperatureUnit: "fahrenheit" })}
-                  className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
-                    settings.temperatureUnit === "fahrenheit"
-                      ? "bg-accent text-white"
-                      : "border border-border bg-surface-elevated text-muted hover:bg-surface-hover"
-                  }`}
-                >
-                  °F
-                </button>
-              </div>
-            </div>
-
-            {/* Density */}
-            <div>
-              <label className="flex items-start gap-3 text-xs text-muted">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={settings.density === "compact"}
-                  onClick={() =>
-                    update({
-                      density: settings.density === "compact" ? "comfortable" : "compact",
-                    })
-                  }
-                  className={`toggle-track relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                    settings.density === "compact" ? "is-on" : ""
-                  }`}
-                >
-                  <span
-                    className={`toggle-dot inline-block h-4 w-4 transform rounded-full shadow transition-transform ${
-                      settings.density === "compact" ? "translate-x-4" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-                <span>
-                  <span className="block text-text">Compact UI</span>
-                  <span className="mt-0.5 block text-[10px] leading-snug text-muted">
-                    Tighter spacing, smaller radius, and reduced font size — fits more Sparks on a single screen.
-                  </span>
-                </span>
-              </label>
-            </div>
-          </div>
-        )}
-
-        {/* Links */}
-        <div className="mt-5 flex items-center gap-3 border-t border-border pt-3">
-          <span className="text-[10px] text-muted">sparkDash v{packageJson.version}</span>
-          <span className="text-border-strong text-[10px]">·</span>
-          <a
-            href="https://x.com/MiaAI_lab"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-muted hover:text-accent transition-colors"
-          >
-            𝕏 @MiaAI_lab
-          </a>
-          <span className="text-border-strong text-[10px]">·</span>
-          <a
-            href="https://github.com/MiaAI-Lab"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-muted hover:text-accent transition-colors"
-          >
-            GitHub MiaAI-Lab
-          </a>
+      <div className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div className="modal-sheet__header">
+          <h2 className="modal-sheet__title" id="settings-title">
+            Settings
+          </h2>
+          <button type="button" className="modal-sheet__close" onClick={onClose} aria-label="Close">
+            <XIcon className="h-4 w-4" />
+          </button>
         </div>
 
-        {error && (
-          <div className="mt-3 rounded bg-danger/20 px-3 py-2 text-xs text-danger">{error}</div>
-        )}
+        <div className="modal-sheet__body">
+          {loading && <p className="bench-sheet__hint">Loading…</p>}
 
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded border border-border bg-surface-elevated px-3 py-1.5 text-xs text-muted hover:bg-surface-hover"
+          <SettingRow
+            title="Appearance"
+            help="Applies instantly on this device. Saved in this browser."
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !settings || !dirty}
-            className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            <div className="swatches" role="radiogroup" aria-label="Theme">
+              {THEME_CHOICES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === t.id}
+                  className={`sw sw--${t.id}${theme === t.id ? " is-on" : ""}`}
+                  onClick={() => pickTheme(t.id)}
+                >
+                  <i className="sw__dot" aria-hidden />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </SettingRow>
+
+          {settings && !loading && (
+            <>
+              <SettingRow title="Refresh rate" help="How often every unit is polled for GPU, CPU, memory, network and LLM metrics, and how often the dashboard updates. Remote units are polled over SSH, so 1s costs the most; storage and liveness keep their own slower checks.">
+                <div className="seg" role="radiogroup" aria-label="Poll interval">
+                  {POLL_PRESETS.map((preset) => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={settings.pollIntervalMs === preset.value}
+                      className={settings.pollIntervalMs === preset.value ? "is-on" : ""}
+                      onClick={() => update({ pollIntervalMs: preset.value })}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </SettingRow>
+
+              <SettingRow title="Temperature unit">
+                <div className="seg" role="radiogroup" aria-label="Temperature unit">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={settings.temperatureUnit === "celsius"}
+                    className={settings.temperatureUnit === "celsius" ? "is-on" : ""}
+                    onClick={() => update({ temperatureUnit: "celsius" })}
+                  >
+                    °C
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={settings.temperatureUnit === "fahrenheit"}
+                    className={settings.temperatureUnit === "fahrenheit" ? "is-on" : ""}
+                    onClick={() => update({ temperatureUnit: "fahrenheit" })}
+                  >
+                    °F
+                  </button>
+                </div>
+              </SettingRow>
+
+              <SettingRow
+                title="Time zone"
+                help={`Hour and day boundaries and labels on the Tokens, Energy and Activity charts. Empty follows this browser (${browserTimeZone}). Daily token buckets and monthly energy totals stay UTC.`}
+                htmlFor="settings-time-zone"
+                stack
+              >
+                <div className="set-tz">
+                  <input
+                    id="settings-time-zone"
+                    type="text"
+                    list="settings-time-zones"
+                    value={settings.timeZone ?? ""}
+                    placeholder="Browser default"
+                    title={`Empty follows this browser (${browserTimeZone})`}
+                    spellCheck={false}
+                    autoComplete="off"
+                    aria-invalid={tzInvalid}
+                    aria-describedby="settings-time-zone-msg"
+                    ref={tzInput}
+                    onChange={(e) => update({ timeZone: e.target.value })}
+                    onFocus={() => setTzFocused(true)}
+                    onBlur={() => {
+                      setTzFocused(false);
+                      setTzTouched(true);
+                    }}
+                    className="field-input"
+                  />
+                  <datalist id="settings-time-zones">
+                    {timeZones.map((zone) => (
+                      <option key={zone} value={zone} />
+                    ))}
+                  </datalist>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--ghost"
+                    disabled={!settings.timeZone}
+                    onClick={() => {
+                      update({ timeZone: "" });
+                      setTzTouched(false);
+                      tzInput.current?.focus(); // the button disables itself: keep keyboard focus somewhere sensible
+                    }}
+                  >
+                    Use browser
+                  </button>
+                </div>
+                {/* One reserved line: the message appears after the field is left, and never moves anything. */}
+                <small id="settings-time-zone-msg" className="set-tz__msg" role="status" aria-live="polite">
+                  {tzInvalid ? "Unknown time zone. Try Europe/Paris." : ""}
+                </small>
+              </SettingRow>
+
+              <SettingRow
+                title="Default LLM port"
+                help="Pre-filled when adding a new Spark (1–65535)."
+                htmlFor="settings-default-llm-port"
+              >
+                <input
+                  id="settings-default-llm-port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={settings.defaultLlmPort}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) update({ defaultLlmPort: val });
+                  }}
+                  className="field-input field-input--port"
+                />
+              </SettingRow>
+
+              <ToggleRow
+                title="Hide offline Sparks"
+                help="Auto-hide offline Sparks on Overview."
+                checked={settings.autoHideOffline}
+                onChange={(v) => update({ autoHideOffline: v })}
+              />
+              <ToggleRow
+                title="Hide worker nodes"
+                help="Removes Worker-role Sparks from Overview and the sidebar. Direct URLs and batch power / Hermes actions still include them."
+                checked={Boolean(settings.hideWorkers)}
+                onChange={(v) => update({ hideWorkers: v })}
+              />
+              <ToggleRow
+                title="Show search and status filters"
+                help="Overview search field and status dropdown (All / Online / Offline / Issues). Off by default."
+                checked={Boolean(settings.showOverviewSearch)}
+                onChange={(v) => update({ showOverviewSearch: v })}
+              />
+              <ToggleRow
+                title="Benchmark share image"
+                help="The decode/prefill Copy results button gains a caret with Copy as text / Copy as image (a share card). Turn it off to keep the plain text button."
+                checked={Boolean(settings.benchShareImage)}
+                onChange={(v) => update({ benchShareImage: v })}
+              />
+              <ToggleRow
+                title="Detailed VRAM breakdown"
+                help="VRAM bars split memory into LLM engine, system and free, and turn amber or red on low free memory rather than on a high percentage. Turn it off for the single percentage bar."
+                checked={settings.showVramBreakdown ?? true}
+                onChange={(v) => update({ showVramBreakdown: v })}
+              />
+              <ToggleRow
+                title="Prometheus metrics"
+                help={`Serves every unit's metrics for Prometheus / Grafana to scrape at ${window.location.origin}/metrics. Off by default.`}
+                checked={Boolean(settings.prometheusExport)}
+                onChange={(v) => update({ prometheusExport: v })}
+              />
+              <ToggleRow
+                title="Intel Arc VRAM via sudo"
+                help="Reads exact Intel Arc VRAM use from root-only debugfs with sudo -n on each host. Off by default: VRAM then shows the PCI BAR size and nothing runs with sudo."
+                checked={Boolean(settings.intelVramSudo)}
+                onChange={(v) => update({ intelVramSudo: v })}
+              />
+              <ToggleRow
+                title="VulnHunter scans"
+                help="Lets the VulnHunter page (Benchmarks) install VulnHunter on a unit, save your agent harness's command there and run scans. A scan starts an AI agent on the unit as its SSH user, so this is off by default; anyone who can reach this dashboard can use it once it is on, so set SPARKDASH_TOKEN if others can."
+                checked={Boolean(settings.vulnhuntEnabled)}
+                onChange={(v) => update({ vulnhuntEnabled: v })}
+              />
+              <ToggleRow
+                title="REA (reverse engineering)"
+                help="Lets the REA page (Tools) install REA on a unit, upload files to it and run analyses there as its SSH user. REA parses untrusted binaries and some workflows run the target; it is off by default, and anyone who can reach this dashboard can use it once it is on, so set SPARKDASH_TOKEN if others can."
+                checked={Boolean(settings.reaEnabled)}
+                onChange={(v) => update({ reaEnabled: v })}
+              />
+              <ToggleRow
+                title="Metrics history"
+                help="Keeps 48 hours of 1-minute and 30 days of 15-minute history per unit on the server (GPU, memory headroom, CPU, network, LLM tok/s and KV; at most about 1 MB per unit on disk) and charts it in a History panel on each unit's page. Off by default."
+                checked={Boolean(settings.metricsHistory)}
+                onChange={(v) => update({ metricsHistory: v })}
+              />
+              <ToggleRow
+                title="Show Fleet Energy"
+                help="Overview card with rolling fleet power estimates. The full Fleet energy page is always available from the sidebar."
+                checked={Boolean(settings.showFleetEnergy)}
+                onChange={(v) => update({ showFleetEnergy: v })}
+              />
+              <SettingRow
+                title="Electricity price"
+                help="Per kWh, used for the estimated cost on the Fleet energy page. Leave empty to hide cost."
+                htmlFor="settings-energy-price"
+              >
+                <div className="set-price">
+                  <input
+                    id="settings-energy-currency"
+                    type="text"
+                    aria-label="Currency symbol"
+                    maxLength={4}
+                    value={settings.energyCurrency ?? "$"}
+                    onChange={(e) => update({ energyCurrency: e.target.value })}
+                    className="field-input field-input--currency"
+                  />
+                  <input
+                    id="settings-energy-price"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="0.15"
+                    value={settings.energyPricePerKwh ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") return update({ energyPricePerKwh: null });
+                      const val = parseFloat(raw);
+                      if (!isNaN(val)) update({ energyPricePerKwh: val });
+                    }}
+                    className="field-input field-input--price"
+                  />
+                </div>
+              </SettingRow>
+              <ToggleRow
+                title="Show LLM Token Totals"
+                help="Overview card with cumulative prompt/generated tokens per model. The full Token totals page is always available from the sidebar."
+                checked={Boolean(settings.showLlmTokenTotals)}
+                onChange={(v) => update({ showLlmTokenTotals: v })}
+              />
+              <ToggleRow
+                title="Show Recent activity"
+                help="Overview card with the latest health and kernel events. The full Activity page is always available from the sidebar."
+                checked={settings.showActivityFeed ?? true}
+                onChange={(v) => update({ showActivityFeed: v })}
+              />
+              <ToggleRow
+                title="Show Fleet decode tile"
+                help="Overview tile with the fleet's total generation tok/s."
+                checked={settings.showKpiDecode ?? true}
+                onChange={(v) => update({ showKpiDecode: v })}
+              />
+              <ToggleRow
+                title="Show Fleet power tile"
+                help="Overview tile with the fleet's total power draw."
+                checked={settings.showKpiPower ?? true}
+                onChange={(v) => update({ showKpiPower: v })}
+              />
+              <ToggleRow
+                title="Show Memory in use tile"
+                help="Overview tile with the fleet's total memory in use."
+                checked={settings.showKpiMemory ?? true}
+                onChange={(v) => update({ showKpiMemory: v })}
+              />
+              <ToggleRow
+                title="Show Tokens in last 24 hours tile"
+                help="Overview tile with the tokens generated in the last 24 hours (or the online unit count, when no tokens are tracked yet)."
+                checked={settings.showKpiTokens ?? true}
+                onChange={(v) => update({ showKpiTokens: v })}
+              />
+              <ToggleRow
+                title="Show active fleet exceptions"
+                help="Overview strip for offline hosts, GPU throttle, disk, LLM, and Tailnet alerts. Off by default."
+                checked={Boolean(settings.showFleetExceptions)}
+                onChange={(v) => update({ showFleetExceptions: v })}
+              />
+              <SettingRow
+                title="Alert notifications"
+                help="Send Health findings and Overview exceptions to ntfy, Discord, Slack or a webhook once they hold for a while, and when they clear. Off by default."
+              >
+                <div className="set-token">
+                  <span className={`set-token__state${settings.alertsEnabled ? " is-set" : ""}`} data-testid="alerts-state">
+                    <i aria-hidden />
+                    {settings.alertsEnabled ? "On" : "Off"}
+                  </span>
+                  <button type="button" className="btn btn--sm" onClick={() => setShowAlerts(true)}>
+                    Configure…
+                  </button>
+                </div>
+              </SettingRow>
+              <BrowserAlertsSettings />
+              <ToggleRow
+                title="Save benchmark debug traces"
+                help="Stores prompts, HTTP/completion IDs, content previews, and GPU samples in bench history. Off by default; larger history files."
+                checked={Boolean(settings.benchDebugTraces)}
+                onChange={(v) => update({ benchDebugTraces: v })}
+              />
+            </>
+          )}
+
+          {/* Outside the settings block: a rejected token is exactly when settings fail to load. */}
+          <SettingRow
+            title="Access token"
+            help="This browser's copy of the server's token, sent to servers that already require one. It cannot turn protection on: set SPARKDASH_TOKEN in the host's .env and recreate the container. Stored in this browser only."
           >
-            {saving ? "Saving..." : "Save"}
-          </button>
+            <div className="set-token">
+              <span className={`set-token__state${tokenSet ? " is-set" : ""}`} data-testid="access-token-state">
+                <i aria-hidden />
+                {tokenSet ? "Set" : "Not set"}
+              </span>
+              <button type="button" className="btn btn--sm" onClick={() => requestTokenPrompt()}>
+                {tokenSet ? "Change" : "Add token"}
+              </button>
+              {tokenSet ? (
+                <button type="button" className="btn btn--sm btn--ghost" onClick={() => clearToken()}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </SettingRow>
+
+          <div className="settings-links">
+            <span>sparkDash v{packageJson.version}</span>
+            <span aria-hidden>·</span>
+            <a href="https://mia-ai.net/" target="_blank" rel="noopener noreferrer">
+              mia-ai.net
+            </a>
+            <span aria-hidden>·</span>
+            <a href="https://x.com/MiaAI_lab" target="_blank" rel="noopener noreferrer">
+              𝕏 @MiaAI_lab
+            </a>
+            <span aria-hidden>·</span>
+            <a href="https://github.com/MiaAI-Lab" target="_blank" rel="noopener noreferrer">
+              GitHub MiaAI-Lab
+            </a>
+          </div>
+        </div>
+
+        {error && <div className="modal-sheet__error">{error}</div>}
+
+        <div className="modal-sheet__footer">
+          <div className="modal-sheet__footer-actions">
+            <button type="button" onClick={onClose} className="btn btn--ghost">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !settings || !dirty}
+              className="btn btn--primary"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
         </div>
       </div>
+      <AlertsDialog open={showAlerts} onClose={() => setShowAlerts(false)} onSettingsSaved={handleAlertsSettings} />
     </div>
   );
 }
